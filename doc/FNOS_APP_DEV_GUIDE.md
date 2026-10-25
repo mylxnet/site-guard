@@ -1,8 +1,8 @@
 # 飞牛 fnOS Native 应用本地开发技术方案
 
 > **用途**：本仓库开发新飞牛应用时的通用参考手册，供人工与 AI Agent 共同使用。
-> **来源**：飞牛应用开放平台官方文档（developer.fnnas.com）、官方 Native 案例（Notepad），以及社区实践踩坑记录。
-> **维护**：本文件随 fnpack / fnOS 版本演进更新；引用官方行为时以官方文档为准。
+> **来源**：飞牛应用开放平台官方文档（developer.fnnas.com）、官方 Native 案例（Notepad）、社区实践踩坑记录，以及「网站哨兵」v0.7.0~v0.8.2 的实机事故复盘（§9.4、§13.5、§15 第 11~14 条）。
+> **维护**：本文件随 fnpack / fnOS 版本演进更新；引用官方行为时以官方文档为准。每遇到新的实机故障，按「现象 / 根因 / 修复 / 教训」补进 §15。
 
 ---
 
@@ -13,7 +13,7 @@
 1. **选型**：读 §1，决定 Native 还是 Docker 技术路线。
 2. **脚手架**：按 §2 准备 `fnpack`，`fnpack create <appname>` 生成骨架。
 3. **填配置**：按 §3~§10 逐项填写 manifest、privilege、resource、cmd、ui/config、wizard。
-4. **本地开发**：按 §12 搭建本地预览（PORT 模式），验证功能。
+4. **本地开发**：按 §12 搭建本地预览（PORT 模式），验证功能；并**用不带尾斜杠的网关前缀**再开一次（网关前端铁律见 §9.4）。
 5. **打包**：按 §13 构建并 `fnpack build` 生成 `.fpk`。
 6. **验收**：按 §14 检查清单在 fnOS 实机/虚拟机上逐项验证。
 7. **排错**：出问题先查 §15 故障表（现象→根因→修复→教训），定位后再动手。
@@ -330,6 +330,46 @@ esac
 
 自研应用建议构建两份 fpk：默认 `type:"url"`（体验完整）与 `-iframe` 版（桌面窗口内嵌）。iframe 版的坑：带登录态（SameSite=lax cookie）的应用在 fnOS iframe/飞牛 App WebView 里可能登不上；此类应用只发 url 版或在上游修 cookie。
 
+### 9.4 网关模式前端铁律（实战必读）
+
+> 以下五条全部来自真实实机事故：0.8.0 打开无样式、0.8.1 初始化报“跨站请求被拒绝”。新应用照此实现，可一次避开。
+
+**① 入口 URL 可能没有尾斜杠，相对资源会解析错位**
+
+- `ui/config` 写 `"url": "/app/myapp"`（官方示例就是这样）时，浏览器把它当“文件”地址，页面里的 `style.css` / `app.js` 被解析到 `/app/style.css`、`/app/app.js`；网关只转发 `/app/myapp/*` → 两个资源 404，页面退化成裸 HTML，`app.js` 不执行连登录表单都不显示。
+- 修复：服务端返回 HTML 时按**原始请求路径**注入 `<base href="/app/myapp/">`；直连调试注入 `<base href="/">`。不要写死在 `index.html` 里——同一份 HTML 要同时服务两种入口。
+- CSP 的 `base-uri` 必须从 `'none'` 改为 `'self'`，否则浏览器拒绝注入的 `<base>`。
+- 验证：访问**不带斜杠**的入口，`document.baseURI` 应为 `http://host/app/myapp/`，`document.styleSheets.length > 0`，控制台无 404。
+
+**② 静态资源与 SPA 兜底必须分流**
+
+- 无扩展名路径 → 回 `index.html`（前端路由）。
+- **有扩展名但文件不存在 → 直接 404**，不能回 `index.html`；否则浏览器把 HTML 当 JS/CSS 执行，报 MIME/语法错误，真正的 404 被掩盖。
+- 托管前先 `path.resolve` 再校验结果仍在 `public/` 根内，防目录穿越。
+
+**③ 同源 / CSRF 校验不能只看 `Origin` 与 `Host`**
+
+- 网关反代到 Unix Socket 时会**改写 `Host`**：浏览器 `Origin` 是 `http://nas:5666`，服务端看到的 `Host` 是转发地址，两者天然不等 → 所有写请求被误判跨站，表现为初始化/登录提交时报“跨站请求被拒绝”。
+- 做法：前端所有 `fetch` 统一带自定义头 `x-<appname>-client: 1`；服务端见到该头即视为“同源页面发出的请求”，跳过 `Origin`/`Host` 比对；**不带该头的请求仍按原逻辑严格校验**，`ALLOWED_ORIGINS` 白名单继续生效。
+- 为什么够安全：HTML 表单无法伪造自定义头；跨站 `fetch` 加自定义头会触发 CORS 预检，而本服务不返回 CORS 头，浏览器直接拦下。
+- 会话 Cookie 用 `HttpOnly; SameSite=Strict; Path=/`；网关 iframe 与页面同源，Strict 不影响使用。
+
+**④ API 基址从 `location.pathname` 推导**
+
+```js
+// 直连 /app 网关都成立，别写死绝对地址
+const API_BASE = (() => {
+  const m = location.pathname.match(/^\/app\/([^/]+)/);
+  return m ? `/app/${m[1]}/api` : '/api';
+})();
+```
+
+**⑤ iframe 与 CSP 分模式放行**
+
+- 网关模式：`X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`。
+- 直连模式：`X-Frame-Options: DENY` + `frame-ancestors 'none'`。
+- `script-src 'self'`（不要内联脚本）；`style-src 'self' 'unsafe-inline'` 兼容内联样式；`connect-src 'self'` 保证 API 可达。
+
 ---
 
 ## 10. 用户向导（wizard/）
@@ -467,12 +507,30 @@ chmod 755 cmd/*
 - manifest、代码内 APP_VERSION、前端展示版本三处必须一致。
 - fpk 是构建产物：进 Release 附件，不进 git；仓库 `.gitignore` 加 `*.fpk`，构建素材（scripts/）保留。
 
+### 13.5 产物自检（不装 NAS 也能核对）
+
+`.fpk` 本质是 **tar.gz**（不是 ar/deb）：外层含 `manifest`、`cmd/`、`config/`、`ui/` 与 `app.tgz`，`app.tgz` 里才是 `server/`。用 `ar x` 会报 `file format not recognized`。
+
+```bash
+rm -rf /tmp/fpk-check && mkdir -p /tmp/fpk-check && cd /tmp/fpk-check
+tar xzf /path/to/myapp-1.2.3-x86.fpk     # 外层
+tar xzf app.tgz                          # 内层：server/ 等
+grep '^version' manifest                 # 版本必须与预期一致
+grep -c 'x-myapp-client' server/src/http.js   # 修复代码真的进包了吗
+grep -o "VERSION = 'v[0-9.]*'" server/public/app.js
+```
+
+必查四项：**manifest 版本**、**入口 `ui/config`**、**本次修复涉及的源文件**、**前端资源确实在 `server/public/` 下**。打包脚本若会临时改写 manifest（如按架构写 `platform`），要确认打包后已还原。
+
 ---
 
 ## 14. 安装测试清单（逐项打勾后才算完成）
 
 - [ ] 应用中心手动安装成功（新版 fnOS 仅支持 Web UI 手动安装；`appcenter-cli install-fpk` 已在 1.1.31xx+ 移除）。
 - [ ] 应用卡片可打开，入口 URL/iframe 正常。
+- [ ] **用不带尾斜杠的入口打开**（如 `/app/myapp`）：CSS/JS 全部 200，`document.baseURI` 正确，控制台无 404（见 §9.4 ①）。
+- [ ] 初始化 / 登录 / 保存等**写操作**能成功，不报“跨站请求被拒绝”（见 §9.4 ③）。
+- [ ] 缺失的静态文件返回 404 而非 `index.html`；SPA 路由能正常回首页（见 §9.4 ②）。
 - [ ] 多用户场景：不同用户只看到自己的数据（验证 `X-Trim-Userid` 隔离）。
 - [ ] 启停状态：应用中心 启动/停止/状态 与 `cmd/main` 行为一致；status 未运行时退出码非 0。
 - [ ] 数据写入声明的 data-share 目录；`/var/apps/<appname>/share/<name>` 软链可用。
@@ -498,6 +556,10 @@ chmod 755 cmd/*
 | 8 | scp 到带空格路径（`/vol1/1000/fnOS App/`）"成功"但文件没更新 | sftp 子系统对远程空格路径解析错误，静默失败 | scp 到 `/tmp` 再 ssh `cp` 到目标；`md5sum` 校验 | NAS 侧路径含空格一律中转 /tmp |
 | 9 | iframe 版登录不上（密码正确仍回登录页） | 应用会话 cookie 为 SameSite=lax，跨源 iframe/飞牛 App WebView 拒绝持久化 | 发 `type:"url"` 版；或内部专用场景禁用登录（接受局域网可访问的取舍） | 打包前 curl 登录接口看 `Set-Cookie` 的 SameSite 值预判 |
 | 10 | ARM 离线包在 x86/ARM 上 `wrong ELF class` | 原生 node_modules 在另一架构容器里编译 | 各架构产物在**对应架构**环境编译；ARM 用 manylinux_2_28_aarch64 容器（glibc≤2.28 兼容 fnOS） | 离线包命名带 `-x86`/`-arm`，`platform` 字段同步改 |
+| 11 | 网关入口能打开，但页面完全没有样式、登录表单也不显示 | `ui/config` 的 `"url": "/app/myapp"` 无尾斜杠，相对 `style.css`/`app.js` 被解析到 `/app/*`，网关不转发 → 404，`app.js` 未执行 | 服务端按原始请求路径注入 `<base href="/app/myapp/">`（直连注入 `/`），CSP `base-uri` 由 `'none'` 改 `'self'` | 网关入口不能假设带斜杠；本地必须用**裸前缀**验证，只测 `/app/myapp/` 会漏 |
+| 12 | 初始化/登录提交报“跨站请求被拒绝”（403） | 网关反代到 Unix Socket 时改写 `Host`，`Origin.host ≠ Host`，同源校验误杀所有写请求 | 前端统一带自定义头 `x-<appname>-client: 1`，服务端据此视为同源；缺头仍严格校验，白名单保留 | 在反代后面，`Origin` 与 `Host` 不可作为同源唯一判据；用自定义头或 CSRF token |
+| 13 | 缺失的 `app.js` 返回 HTML，控制台报 MIME/语法错误 | SPA 兜底把带扩展名的请求也回 `index.html` | 按扩展名分流：无扩展名回 `index.html`，有扩展名不存在直接 404 | 兜底路由最容易把 404 伪装成“奇怪的前端报错” |
+| 14 | 解包核对发现修复没进包 / 版本号不对 | 打包脚本复制了旧产物，或 manifest 被按架构临时改写后未还原 | 按 §13.5 解包自检四项后再分发 | 「本地跑通」≠「包里是新的」；分发前必须验包 |
 
 通用排查顺序：**看两份日志**（`/var/log/apps/<appname>.log` + 应用自身 log）→ `ss -tlnp` 看端口 → `ps aux | grep` 看进程与运行用户 → 按上表定位。定位后按"现象/根因/修复/教训"格式补录到本表。
 

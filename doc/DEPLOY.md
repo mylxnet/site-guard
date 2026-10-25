@@ -21,7 +21,7 @@
 
 ## 1. 部署（飞牛原生应用 .fpk，推荐）
 
-> 0.7.0 起，网站哨兵以 **Native 应用**交付：不依赖 Docker、不占端口，走 fnOS 统一网关（Unix Socket 转发），桌面图标与飞牛 App 移动端都能直接打开。打包流程遵循仓库内的 `fnos-native-app-dev-guide.md`。
+> 0.7.0 起，网站哨兵以 **Native 应用**交付：不依赖 Docker、不占端口，走 fnOS 统一网关（Unix Socket 转发），桌面图标与飞牛 App 移动端都能直接打开。打包流程遵循 [FNOS_APP_DEV_GUIDE.md](FNOS_APP_DEV_GUIDE.md)。
 
 ### 1.1 构建安装包（开发机）
 

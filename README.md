@@ -129,6 +129,7 @@ site-guard/
 ├── CHANGELOG.md           # 版本历史与详细更新日志
 ├── package.json           # 版本、脚本、唯一依赖
 ├── doc/
+│   ├── FNOS_APP_DEV_GUIDE.md  # 飞牛 fnOS 原生应用通用开发指南（含网关铁律与实机排坑）
 │   ├── DESIGN.md          # 设计方案：需求评估、判定逻辑、选型对比
 │   ├── PROJECT.md         # 开发技术文档：架构、数据模型、规则表、接口
 │   ├── PROJECT_STATE.md   # 状态与交接：做到哪、踩过什么坑
@@ -145,7 +146,7 @@ site-guard/
 └── tools/                 # 运维小工具（备份导出等）
 ```
 
-> 当前 `public/` 已由设计原型演进为正式面板（四页签 + 登录/初始化 + 弹窗），`prototype/` 仅作设计参考；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 111 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、接口与网关/Socket。
+> 当前 `public/` 已由设计原型演进为正式面板（四页签 + 登录/初始化 + 弹窗），`prototype/` 仅作设计参考；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 112 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、接口与网关/Socket。
 
 ### 🖱️ 常用操作
 

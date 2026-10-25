@@ -111,7 +111,7 @@
 
 ### 0.7.0 - 2026-10-25
 
-**背景**：交付形态从 Docker 改为 **fnOS 原生应用（.fpk）**，按 `fnos-native-app-dev-guide.md` 实现；能不依赖 Docker 就不依赖，容器方案降级为备用路径（未实现）。
+**背景**：交付形态从 Docker 改为 **fnOS 原生应用（.fpk）**，按 `doc/FNOS_APP_DEV_GUIDE.md` 实现；能不依赖 Docker 就不依赖，容器方案降级为备用路径（未实现）。
 
 **新增**
 - `fnos/siteguard/`：飞牛包目录——`manifest`（统一网关 `os_min_version = 1.1.3100`、无 `service_port`、`checkport=false`）、`config/privilege`（4 空格缩进、`run-as: package`）、`config/resource`（`siteguard/data` 数据 share）、`app/ui/config`（iframe 网关入口 `siteguard.main` + `gatewayPrefix/gatewaySocket`）、图标与 `wizard/`。
