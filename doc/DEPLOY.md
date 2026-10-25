@@ -239,8 +239,8 @@ docker run --rm -p 8686:8686 -v $PWD/data:/data -e TZ=Asia/Shanghai site-guard:d
 ### 4.3 推送到阿里云 ACR（agent.md 七.7 要求）
 
 ```bash
-# 注意：需用经典构建器，否则 buildx 会生成阿里云 ACR 不支持的 OCI 空层
-DOCKER_BUILDKIT=0 docker build -f deploy/Dockerfile -t site-guard:0.7.2 .
+# 注意：需加 --provenance=false --sbom=false，否则 buildx 会生成阿里云 ACR 不支持的 OCI attestation 清单（报 unknown manifest class）
+docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile -t site-guard:0.7.2 .
 docker tag site-guard:0.7.2 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.7.2
 docker tag site-guard:0.7.2 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
 docker login registry.cn-hangzhou.aliyuncs.com

@@ -91,7 +91,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 - **现象**：`docker push` 到阿里云 ACR 时，各层都已 `Pushed`/`Mounted`，却在最后写 manifest 阶段报 `error from registry: unknown manifest class for application/vnd.oci.empty.v1+json`。
 - **根因**：Docker 29.x 默认 BuildKit/buildx 会额外生成 OCI 格式 attestation/provenance 与 manifest list（含 `vnd.oci.empty.v1+json` 空层媒体类型），阿里云 ACR 不支持这类 OCI 扩展类型。
-- **修复**：改用经典构建器 `DOCKER_BUILDKIT=0 docker build`（只产出单一 Docker manifest），或 `docker buildx build --provenance=false --sbom=false`。
+- **修复**：构建时加 `--provenance=false --sbom=false`（只关掉 attestation 来源，保留 BuildKit）；等价做法是经典构建器 `DOCKER_BUILDKIT=0 docker build`（整体回退 BuildKit）。
 - **教训**：推给阿里云 ACR 的镜像须禁用 attestation/provenance，避免 OCI 扩展媒体类型。
 
 ---
