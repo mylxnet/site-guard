@@ -94,8 +94,7 @@ site-guard/
 ├── public/
 │   └── index.html            # [已实现] 服务状态页；正式界面由 prototype 演进后接入 API
 ├── deploy/
-│   ├── docker-compose.yml
-│   └── Dockerfile
+│   └── Dockerfile            # [已实现] Docker 镜像构建（node:22-alpine，非 root + SQLite /data）
 ├── test/                     # node:test 用例
 ├── scripts/                  # 构建/打包/推送镜像脚本
 └── tools/                    # 运维小工具（备份导出等）

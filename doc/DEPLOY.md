@@ -10,10 +10,10 @@
 | --- | --- | --- |
 | 0.6.0 | 后端 + 检测引擎 + 邮件告警 | 可在电脑上用 `npm start` 跑通全链路（站点/页面、真实抓取、四档判定、基线差异、汇总邮件、事件流与设置）；界面只有状态页 |
 | 0.7.0（当前） | **飞牛原生应用（.fpk）已可打包** | `node scripts/build-fnos.mjs` 出 x86/arm 两个安装包，走统一网关 + Unix Socket，**不依赖 Docker**；包内自带 Node 运行时；**尚未在实机 fnOS 上安装验证** |
-| 0.8.0 | Docker 镜像（备用路径） | 仅当你确实想用容器时才做；第 2 节起是这条路径，Dockerfile 尚未产出 |
+| 0.8.0 | Docker 镜像（备用路径） | 已可构建：`docker build -f deploy/Dockerfile ...`，镜像已推阿里云 ACR；第 2 节起是这条路径 |
 | 1.0.0 | 正式版 | 正式前端面板 + 实机部署验收 |
 
-> **本文档的推荐路径是第 1 节（原生应用）**；第 2 节起的 Docker 流程是备用方案，镜像未产出前不可执行。
+> **本文档的推荐路径是第 1 节（原生应用）**；第 2 节起的 Docker 流程是备用方案，镜像已产出、可直接执行。
 
 ---
 
@@ -99,7 +99,7 @@ TRIM_TEMP_LOGFILE="$FAKE/temp.log" TRIM_APPVER=0.7.0 \
 
 ## 2. 前置条件（Docker 备用路径）
 
-> ⚠️ 从本节到第 10 节都是 **Docker 备用方案**，Dockerfile 与镜像尚未产出；日常部署请用第 1 节的 `.fpk`。
+> ⚠️ 从本节到第 10 节都是 **Docker 备用方案**；`deploy/Dockerfile` 已产出、镜像已推阿里云 ACR，日常部署请优先用第 1 节的 `.fpk`。
 
 | 项 | 要求 | 检查方式 |
 | --- | --- | --- |
@@ -200,7 +200,7 @@ docker compose logs -f --tail=50
 
 ## 4. 构建镜像（开发者）
 
-### 4.1 Dockerfile（目标形态）
+### 4.1 Dockerfile（已落地 `deploy/Dockerfile`）
 
 ```dockerfile
 FROM node:22-alpine
@@ -239,12 +239,16 @@ docker run --rm -p 8686:8686 -v $PWD/data:/data -e TZ=Asia/Shanghai site-guard:d
 ### 4.3 推送到阿里云 ACR（agent.md 七.7 要求）
 
 ```bash
-docker tag site-guard:1.0.0 registry.cn-hangzhou.aliyuncs.com/<命名空间>/site-guard:1.0.0
+# 注意：需用经典构建器，否则 buildx 会生成阿里云 ACR 不支持的 OCI 空层
+DOCKER_BUILDKIT=0 docker build -f deploy/Dockerfile -t site-guard:0.7.2 .
+docker tag site-guard:0.7.2 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.7.2
+docker tag site-guard:0.7.2 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
 docker login registry.cn-hangzhou.aliyuncs.com
-docker push registry.cn-hangzhou.aliyuncs.com/<命名空间>/site-guard:1.0.0
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.7.2
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
 ```
 
-需要你提供：阿里云账号的 ACR 命名空间、仓库名与登录凭据。**凭据不进仓库、不写在 compose 里**，用 `docker login` 交互输入或 NAS 的凭据管理。
+命名空间 `mylxnet`、仓库 `site-guard` 已就绪；凭据用 `docker login` 交互输入，**不进仓库、不写在 compose 里**。
 
 ### 4.4 离线导入（无镜像仓库时的退路）
 

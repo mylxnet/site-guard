@@ -11,7 +11,7 @@
 
 [English](#english) | [中文](#中文)
 
-> ⚠️ **当前阶段**：`0.6.0` 已可真实抓取页面、四档判定、基线与差异，并在每轮巡检后发送**汇总邮件**（同类内容变更 6 小时冷却、恢复补发）；事件流、邮件设置与测试邮件接口可用。正式前端面板与 **Docker 镜像尚不存在**。
+> ⚠️ **当前阶段**：`0.6.0` 已可真实抓取页面、四档判定、基线与差异，并在每轮巡检后发送**汇总邮件**（同类内容变更 6 小时冷却、恢复补发）；事件流、邮件设置与测试邮件接口可用；`.fpk` 与 Docker 镜像均已可构建，正式前端面板尚未接入 API。
 > 想在电脑上试后端：`npm start` 后打开 `http://127.0.0.1:8686`；想看界面：打开 `prototype/index.html`。部署请以 [DEPLOY.md](doc/DEPLOY.md) 为目标流程参考。
 
 ---
@@ -97,9 +97,9 @@ PORT=9000 DATA_DIR=./data TZ=Asia/Shanghai npm start
 node scripts/build-fnos.mjs            # 出 dist/fnos/siteguard-<版本>-x86.fpk 与 -arm.fpk
 node scripts/build-fnos.mjs --arch x64 # 只出一个架构
 
-# Docker 备用路径：尚未产出 Dockerfile，仅作目标形态备忘
-docker build -t site-guard:dev .
-docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:dev
+# Docker 镜像（备用路径，已可构建）
+docker build -f deploy/Dockerfile -t site-guard:0.7.2 .
+docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.7.2
 ```
 
 ### 🛠️ 技术栈
@@ -111,7 +111,7 @@ docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard
 | 后端 | 内置 `node:http` | 轻量路由，无框架 |
 | 前端 | 原生 HTML/CSS/JS | 无构建链，镜像小，改完即生效 |
 | 邮件 | nodemailer（MIT） | 唯一依赖，支持 SSL/STARTTLS/授权码 |
-| 部署 | 飞牛原生应用（.fpk） | 统一网关 Unix Socket，不占端口，自带 Node 运行时；Docker 为备用路径 |
+| 部署 | 飞牛原生应用（.fpk）+ Docker 镜像 | 统一网关 Unix Socket 不占端口、自带 Node 运行时；Docker 镜像已推送阿里云 ACR（备用） |
 
 ### 🔒 数据与隐私
 
@@ -139,7 +139,7 @@ site-guard/
 ├── src/                   # 后端源码（server / routes / db / auth / scheduler / runner …）
 ├── public/                # 正式前端（目前仅状态页，后续由 prototype 演进）
 ├── fnos/                  # 飞牛包目录：manifest / cmd / config / wizard / ui
-├── deploy/                # Dockerfile 与 compose（备用路径，尚未产出）
+├── deploy/                # Dockerfile（Docker 镜像构建，备用路径）
 ├── test/                  # node:test 用例
 ├── scripts/               # build-fnos.mjs 打包、make-icons.mjs 图标、镜像推送
 └── tools/                 # 运维小工具（备份导出等）
@@ -189,7 +189,7 @@ MIT License。
 
 **Site Guard** is a self-hosted website monitoring tool for your NAS. Instead of trusting HTTP 200, it fetches each key page and decides whether the **content** still looks like a healthy page — so a `502 Bad Gateway` served with status 200, a blank page, a maintenance page or a redirect to another domain is reported as an incident. It keeps a baseline of each page, reports content changes with a line diff, and sends **one digest email per run** to your inbox.
 
-Current stage: `0.6.0` fetches real pages, applies four-level verdicts, stores baselines, shows line diffs and sends one digest email per run with a 6-hour cooldown for repeated content changes. The final web UI and the Docker image are not available yet.
+Current stage: `0.6.0` fetches real pages, applies four-level verdicts, stores baselines, shows line diffs and sends one digest email per run with a 6-hour cooldown for repeated content changes. The final web UI is not yet wired to the API; the Docker image is provided (see Deploy).
 
 ### Tech Stack
 

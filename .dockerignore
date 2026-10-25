@@ -1,0 +1,15 @@
+node_modules
+data
+dist
+build
+.git
+.gitignore
+*.fpk
+fnos/siteguard/app/server
+*.log
+*.tmp
+.DS_Store
+.env
+.env.*
+!.env.example
+doc/images/*.tmp

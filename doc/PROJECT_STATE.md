@@ -23,7 +23,7 @@
 | 事件流与邮件设置接口（0.6.0） | ✅ 完成 |
 | **飞牛原生应用 .fpk（包目录/生命周期脚本/打包脚本，0.7.0）** | ✅ 完成，已出 x86 与 arm 两包；**实机安装待验收** |
 | 前端（`public/` 接入 API） | ⬜ 未开始 |
-| Docker 镜像与 Compose（改为备用路径） | ⬜ 未开始，仅在你确实要容器时再做 |
+| Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（0.7.2 / latest） |
 
 > 说明：当前 `npm start` 可完成“初始化 → 建站点/页面 → 巡检 → 看判定与差异 → 确认基线 → 收到汇总邮件”的闭环，抓取与 SMTP 都是真实链路；0.7.0 起可打包成飞牛原生安装包（不依赖 Docker），尚未交付的是正式前端面板与实机安装验收。
 
@@ -41,7 +41,7 @@
 | npm registry | `https://registry.npmmirror.com` |
 | apt 源 | 阿里云镜像（`mirrors.aliyun.com`） |
 | 源码仓 | `E:\work\site-guard`（分支 `main`） |
-| Docker | **未安装**（Windows 与 WSL 内都没有） |
+| Docker | WSL 内已装 Docker 29.8.0（镜像构建/推送在此执行） |
 | 自动化测试 | Windows 侧 Node v22.23.2 直接 `npm test`（无需 WSL，也不依赖 `node_modules`） |
 
 ### 2.1 常用命令
@@ -87,13 +87,20 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
   2. MSI 的注册源失效时，`/fa` 和重新 `/i` 都救不了，卸载重装才是最短路径。
   3. 提权进程可能读不到当前用户的 Temp 目录，安装包应放全机可读路径。
 
+### 坑 2：阿里云 ACR 不支持 buildx 生成的 OCI 空层
+
+- **现象**：`docker push` 到阿里云 ACR 时，各层都已 `Pushed`/`Mounted`，却在最后写 manifest 阶段报 `error from registry: unknown manifest class for application/vnd.oci.empty.v1+json`。
+- **根因**：Docker 29.x 默认 BuildKit/buildx 会额外生成 OCI 格式 attestation/provenance 与 manifest list（含 `vnd.oci.empty.v1+json` 空层媒体类型），阿里云 ACR 不支持这类 OCI 扩展类型。
+- **修复**：改用经典构建器 `DOCKER_BUILDKIT=0 docker build`（只产出单一 Docker manifest），或 `docker buildx build --provenance=false --sbom=false`。
+- **教训**：推给阿里云 ACR 的镜像须禁用 attestation/provenance，避免 OCI 扩展媒体类型。
+
 ---
 
 ## 5. 已知限制
 
 - **原生应用尚未实机验证**：`.fpk` 已能打包，但没有在真实 fnOS 上安装过；`fnpack` 对 `wizard` 内容的校验规则（如不接受 `tips` 类型）是实测出来的，实机仍可能遇到校验器差异，需按 `fnos-native-app-dev-guide.md` 第 14 节清单逐项验收。
 - ARM 包（`siteguard-0.7.0-arm.fpk`）只完成了打包与结构检查，没有在 ARM 机器上跑过。
-- Docker 尚未安装、Dockerfile 也未产出：已降级为备用路径（DEPLOY 第 2 节起），仅当你明确要容器时再补。
+- Docker 已落地为 `deploy/Dockerfile`（node:22-alpine、非 root、SQLite `/data` 卷），镜像已推阿里云 ACR；`docker-compose.yml` 尚未产出（如需要再补）。
 - 侵权发现仅做降级处理（详见 DESIGN 2.2 R6），不做全网检索。
 - demo 为纯静态假数据，不发请求、不写真数据；真实数据只能通过 API 写入。
 - 检测引擎只做静态 HTML 抓取，不执行 JS；SPA 会判 `unknown`（无法确认），不引入 Headless 浏览器。
@@ -121,7 +128,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 | 2 | ~~界面 demo~~ ✅ demo v2 已交付（站点/页面两层、日程、四档判定与差异） | 待确认视觉效果 |
 | 7 | SSH 拉取文件清单通道（仅当站点自有且有 SSH 时） | 需求确认 |
 | 3 | ~~`README.md` / `PROJECT.md` / `DEPLOY.md` / `CHANGELOG.md` / `TEST.md`~~ ✅ 已补齐（0.3.1） | — |
-| 4 | Docker 安装与镜像流水线（已降级为备用路径，等你确认是否需要） | 你的决定 + 阿里云账号 |
+| 4 | Docker 镜像已完成（Dockerfile + 推阿里云 ACR）；剩余可选：docker-compose.yml 编排 | 可选 |
 | 5 | ~~`doc/images/` 界面截图~~ ✅ 已产出 4 张（概览/监测/事件/设置） | — |
 | 6 | ~~应用图标~~ ✅ 已产出：`scripts/make-icons.mjs` 生成 `fnos/siteguard/ICON*.PNG` 与 `app/ui/images/icon_*.png` | — |
 
@@ -131,6 +138,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 | 版本 | 日期 | 内容 |
 | --- | --- | --- |
+| 0.7.2 | 2026-10-26 | 修复 .fpk 安装报「包格式不符合系统版本要求」：移除 wizard 文件；新增 Docker 镜像（`deploy/Dockerfile`）并推阿里云 ACR；版本 0.7.2 多处同步 + 排错文档 |
 | 0.7.0 | 2026-10-25 | 飞牛原生应用：`fnos/siteguard` 包目录（manifest 统一网关、privilege/resource、`app/ui/config` iframe 入口、9 个生命周期脚本、卸载向导）、`scripts/build-fnos.mjs` 一键出 x86/arm 两个 .fpk（内置 Node v22.23.4、依赖随包、按架构写 platform）、网关前缀 + Unix Socket 适配与 111 条用例、调度器补跑用例去抖；生命周期与回调在本机模拟通过，实机安装待验收 || 0.6.0 | 2026-10-25 | 邮件告警：SMTP 设置读写与脱敏、纯文本/HTML 汇总模板、主题分级、同类 6 小时冷却、恢复补发、失败重试与错误映射、测试邮件；事件流（筛选/分页）与设置接口；批次结束后自动发信并标记 `notified`；105 条用例；真实 SMTP 桩端到端验证 |
 | 0.5.0 | 2026-10-25 | 检测引擎：抓取（重定向/超时/截断/GBK/失败分类）、正文提取与忽略规则、R-01~R-15 + R-07b 四档判定、sha256 指纹与多重集合差异、基线与事件状态机、单页复检/详情/差异/确认基线/概览接口；87 条用例；修复基线快照被清理、suspect 基线不落库、标题重复计入正文、子路径页被误判重定向 4 个缺陷 |
 | 0.4.0 | 2026-10-25 | 后端骨架：`node:http` 服务与安全头、首次初始化/登录/会话、站点与页面 API、时区感知的调度器（抖动/补跑/并发互斥/每日上限）、批次进度；32 条自动化用例（调度时区、校验、接口、补跑与 409）；修复静态首页 404、PATCH 站点 500、校验错误被当 500 三个缺陷 |

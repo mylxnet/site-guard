@@ -26,6 +26,9 @@
 
 **背景**：0.7.0 / 0.7.1 的 .fpk 在飞牛 fnOS 1.2.08 应用中心安装时报「应用包格式不符合系统版本要求」。经二分定位（裸模板 + 单变量逐项隔离）确认根因是 `wizard/install` 与 `wizard/uninstall` 两个文件——fnOS 校验器对 wizard 内容敏感（本地手册 §10 预警）。
 
+**新增**
+- Docker 镜像：新增 `deploy/Dockerfile`（`node:22-alpine`、国内 npm 源、非 root 运行、SQLite `/data` 卷）与 `.dockerignore`；镜像已构建并推送阿里云 ACR `registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard`（标签 `0.7.2` 与 `latest`）。
+
 **修复**
 - 删除 `fnos/siteguard/wizard/install` 与 `fnos/siteguard/wizard/uninstall`，回归空 `wizard/` 目录。
 - 卸载「彻底删除数据」选项暂以默认保留数据替代（`uninstall_init` 中 `${wizard_purge:-}` 恒为空 → 安全保留）。
