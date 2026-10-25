@@ -1,8 +1,8 @@
-/* 网站哨兵 · 面板前端 · v0.8.0
+/* 网站哨兵 · 面板前端 · v0.8.2
  * 对接 /api/*：初始化/登录、站点与页面 CRUD、真实巡检进度、判定详情、差异与基线、事件流、邮件设置。
  */
 
-const VERSION = 'v0.8.0';
+const VERSION = 'v0.8.2';
 
 /* 同源 API 基址：直连（/）与飞牛统一网关（/app/<appname>/）都成立。 */
 const API_BASE = (() => {
@@ -95,7 +95,11 @@ function toast(message, kind = '') {
 async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch(API_BASE + path, {
     method,
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    headers: {
+      // 网关会改写 Host，Origin 与 Host 对不上；这个头用来表明“同源页面发出的请求”。
+      'x-siteguard-client': '1',
+      ...(body === undefined ? {} : { 'content-type': 'application/json' })
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: 'same-origin'
   });

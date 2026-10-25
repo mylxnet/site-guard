@@ -80,8 +80,14 @@ export function setCookie(res, name, value, { maxAge, expires } = {}) {
 /**
  * CSRF 纵深防御：浏览器跨站请求一定带 Origin，握不上就拒。
  * 不带 Origin 的请求（curl、健康检查）放行，因为 Cookie 是 SameSite=Strict。
+ *
+ * 飞牛统一网关会改写 Host（反向代理到 Unix Socket），Origin 与 Host 天然对不上，
+ * 所以前端每个请求都带自定义头 x-siteguard-client: 1，表示“这是同源页面发出的”。
+ * 跨站表单无法伪造自定义头；跨站 fetch 加头会触发预检，而本服务不返回 CORS 头，浏览器会直接拦下。
  */
 export function assertSameOrigin(req, { allowHosts = [] } = {}) {
+  if (req.headers['x-siteguard-client'] === '1') return;
+
   const origin = req.headers.origin;
   if (!origin) return;
 

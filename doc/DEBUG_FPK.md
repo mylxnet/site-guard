@@ -63,12 +63,16 @@ fnOS 1.x 校验器对 wizard 内容敏感（本地手册 §10 已预警）。此
 - 若可 SSH 到 fnOS，`appcenter-cli install-fpk` 能输出更详细的错误，比反复试装高效。
 - 生成/打包动作一律在 WSL 内完成。
 
-## 八、当前状态（0.8.0）
+## 八、当前状态（0.8.2）
 
 - `0.7.2` 删除 `wizard/install` 与 `wizard/uninstall` 后重新出包，**已在飞牛 fnOS 实机安装成功**：应用中心装包通过、桌面图标打开后正常进入统一网关入口。
 - 因此 §四 根因结论成立，§五 待测项无需继续二分。
 - `0.7.3` 装出来仍是「接口清单状态页」——这不是打包问题：当时 `public/` 只有一个占位状态页，四页签还在 `prototype/`。`0.8.0` 已把正式面板落进 `public/`，随 `app/server/public/` 一起进包。
-- `0.8.0` 重新出包（面板待实机复核）：
-  - `dist/fnos/siteguard-0.8.0-x86.fpk`
-  - `dist/fnos/siteguard-0.8.0-arm.fpk`
-- 仍待补测：0.8.0 包在 fnOS 实机的面板显示与资源加载、升级（旧版 → 新版覆盖安装）、卸载（保留数据默认值）。
+- `0.8.0` 实机装好后能打开面板，但完全没有样式：入口 `"url": "/app/siteguard"` 没有尾斜杠，相对路径 `style.css` / `app.js` 被解析到 `/app/*`，网关不转发 → CSS/JS 404。
+- `0.8.1` 修复：服务端返回 HTML 时按请求路径注入 `<base href="/app/siteguard/">`（直连注入 `/`），CSP `base-uri` 由 `'none'` 改为 `'self'`；已用 `GATEWAY_PREFIX=/app/siteguard` + 裸前缀在本机浏览器复测通过。
+- `0.8.1` 实机确认样式已恢复，但首次初始化输入两次密码提交时报 403「跨站请求被拒绝」：飞牛网关反代到 Unix Socket 时会改写 `Host`，`Origin` 与 `Host` 天然对不上，`assertSameOrigin` 把所有写操作判成跨站。
+- `0.8.2` 修复：前端所有 API 请求带自定义头 `x-siteguard-client: 1`，服务端见到即视为同源并跳过比对；缺头仍严格校验，`ALLOWED_ORIGINS` 白名单照常生效。跨站表单无法伪造该头，跨站 `fetch` 加头会触发预检（本服务不返回 CORS），防御强度不降。
+- `0.8.2` 重新出包（同源修复待实机复核）：
+  - `dist/fnos/siteguard-0.8.2-x86.fpk`
+  - `dist/fnos/siteguard-0.8.2-arm.fpk`
+- 仍待补测：0.8.2 包在 fnOS 实机的初始化/登录、升级（旧版 → 新版覆盖安装）、卸载（保留数据默认值）。

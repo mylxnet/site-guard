@@ -29,11 +29,15 @@ test('网关前缀：/app/siteguard/api/* 与 /app/siteguard/ 都能走通', asy
     const page = await fetch(`${base}/app/siteguard/`, { headers: { accept: 'text/html' } });
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-type'), /text\/html/);
-    assert.match(await page.text(), /网站哨兵/);
+    const pageHtml = await page.text();
+    assert.match(pageHtml, /网站哨兵/);
+    // 相对资源（style.css / app.js）靠 <base> 落到网关前缀下。
+    assert.match(pageHtml, /<base href="\/app\/siteguard\/">/);
 
-    // 前缀本身也要能打开，网关偶尔会用不带斜杠的地址探活。
+    // 前缀本身也要能打开（飞牛桌面入口就是不带斜杠的地址），同样要带 base 兜住相对资源。
     const bare = await fetch(`${base}/app/siteguard`, { headers: { accept: 'text/html' } });
     assert.equal(bare.status, 200);
+    assert.match(await bare.text(), /<base href="\/app\/siteguard\/">/);
   } finally {
     await app.close();
   }
@@ -46,6 +50,7 @@ test('网关前缀：直连路径依然可用（本地端口调试不用带前�
     assert.equal(health.status, 200);
     const page = await fetch(`${base}/`, { headers: { accept: 'text/html' } });
     assert.equal(page.status, 200);
+    assert.match(await page.text(), /<base href="\/">/);
   } finally {
     await app.close();
   }
@@ -84,6 +89,7 @@ test('Unix Socket：不监听端口也能通过 app.sock 提供网关前缀下�
     assert.equal(page.status, 200);
     assert.match(page.headers['content-type'], /text\/html/);
     assert.match(page.body, /网站哨兵/);
+    assert.match(page.body, /<base href="\/app\/siteguard\/">/);
 
     // 不带前缀的健康检查在网关模式下照样能用（cmd/main 的探活走的就是它）。
     const bare = await socketRequest(socketPath, '/api/health');
@@ -98,7 +104,9 @@ test('单页兑底：无扩展名路径返回 index.html，缺静态文件仍然
   try {
     const spa = await fetch(`${base}/app/siteguard/sites/3`, { headers: { accept: 'text/html' } });
     assert.equal(spa.status, 200);
-    assert.match(await spa.text(), /网站哨兵/);
+    const spaHtml = await spa.text();
+    assert.match(spaHtml, /网站哨兵/);
+    assert.match(spaHtml, /<base href="\/app\/siteguard\/">/);
 
     const asset = await fetch(`${base}/app/siteguard/app.js`, { headers: { accept: '*/*' } });
     assert.equal(asset.status, 200);
@@ -119,6 +127,7 @@ test('iframe 头：网关模式放行同源嵌套，直连模式仍然禁止', a
     const res = await fetch(`${framed.base}/app/siteguard/`, { headers: { accept: 'text/html' } });
     assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN');
     assert.match(res.headers.get('content-security-policy'), /frame-ancestors 'self'/);
+    assert.match(res.headers.get('content-security-policy'), /base-uri 'self'/);
   } finally {
     await framed.app.close();
   }
@@ -153,6 +162,37 @@ test('ALLOWED_ORIGINS：网关改写 Host 时，列出的来源不再被判跨�
       body: JSON.stringify({ password: '12345678' })
     });
     assert.equal(allowed.status, 409);
+  } finally {
+    await app.close();
+  }
+});
+
+test('同源校验：x-siteguard-client 头放行网关改写 Host 的页面请求，缺头仍拒绝', async () => {
+  const { app, base } = await startApp({ gatewayPrefix: '/app/siteguard' });
+  const payload = JSON.stringify({ password: 'Test12345678' });
+  try {
+    // 模拟飞牛网关：浏览器 Origin 是 NAS 地址，转发时的 Host 与它不一致。
+    const blocked = await fetch(`${base}/app/siteguard/api/setup`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://nas.local:5666' },
+      body: payload
+    });
+    assert.equal(blocked.status, 403);
+    assert.equal((await blocked.json()).error.message, '跨站请求被拒绝');
+
+    // 前端页面发出的请求带自定义头，视为同源；此时应能正常初始化。
+    const allowed = await fetch(`${base}/app/siteguard/api/setup`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://nas.local:5666',
+        'x-siteguard-client': '1'
+      },
+      body: payload
+    });
+    assert.equal(allowed.status, 200);
+    assert.equal((await allowed.json()).ok, true);
+    assert.match(allowed.headers.get('set-cookie') ?? '', /sg_sid=/);
   } finally {
     await app.close();
   }

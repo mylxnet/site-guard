@@ -42,7 +42,8 @@ function securityHeaders({ framed = false } = {}) {
       "script-src 'self'",
       "connect-src 'self'",
       `frame-ancestors ${framed ? "'self'" : "'none'"}`,
-      "base-uri 'none'",
+      // 网关入口可能是 /app/siteguard（无尾斜杠），靠注入的 <base> 让相对资源落到前缀下，这里必须放行同源 base。
+      "base-uri 'self'",
       "form-action 'self'"
     ].join('; ')
   };
@@ -90,13 +91,28 @@ export function createApp({
   const publicDir = path.resolve(fileURLToPath(config.publicDir));
   const socketTarget = socketTargetFor(config.socketPath);
   const headers = securityHeaders({ framed: Boolean(config.gatewayPrefix) });
+  /**
+   * 飞牛桌面入口是 /app/siteguard（没有尾斜杠），浏览器会把 style.css 解析成 /app/style.css，
+   * 而网关只转发 /app/siteguard/* —— 不注入 base，CSS/JS 就会 404、页面裸奔。
+   * 直连调试（/ 或 /sites/3）则用根路径，避免把资源指到用不到的前缀上。
+   */
+  function baseHrefFor(pathname) {
+    const prefix = config.gatewayPrefix;
+    if (prefix && (pathname === prefix || pathname.startsWith(`${prefix}/`))) return `${prefix}/`;
+    return '/';
+  }
 
-  async function sendFile(req, res, target) {
+  async function sendFile(req, res, target, baseHref) {
     const info = await stat(target);
     if (!info.isFile()) throw notFound('页面不存在');
-    const body = await readFile(target);
+    const ext = path.extname(target).toLowerCase();
+    let body = await readFile(target);
+    if (ext === '.html') {
+      const baseTag = `<base href="${baseHref}">`;
+      body = Buffer.from(String(body).replace(/<head>/i, `<head>\n  ${baseTag}`), 'utf8');
+    }
     res.writeHead(200, {
-      'content-type': CONTENT_TYPES[path.extname(target).toLowerCase()],
+      'content-type': CONTENT_TYPES[ext],
       'content-length': body.length,
       'cache-control': 'no-cache',
       ...headers
@@ -104,7 +120,7 @@ export function createApp({
     res.end(req.method === 'HEAD' ? undefined : body);
   }
 
-  async function serveStatic(req, res, pathname) {
+  async function serveStatic(req, res, pathname, baseHref) {
     let decoded;
     try {
       decoded = decodeURIComponent(pathname);
@@ -121,13 +137,13 @@ export function createApp({
 
     try {
       if (!inside) throw notFound('页面不存在');
-      await sendFile(req, res, target);
+      await sendFile(req, res, target, baseHref);
     } catch {
       // 单页应用兜底：无扩展名的页面路径交给 index.html；静态资源缺文件仍然是 404。
       const acceptsHtml = String(req.headers.accept ?? '').includes('text/html');
       if (req.method === 'GET' && acceptsHtml && !path.extname(decoded)) {
         try {
-          await sendFile(req, res, path.join(publicDir, 'index.html'));
+          await sendFile(req, res, path.join(publicDir, 'index.html'), baseHref);
           return;
         } catch {
           // 连 index.html 都没有，走下面的 404。
@@ -166,7 +182,7 @@ export function createApp({
     try {
       if (await api.handle(req, res, routed)) return;
       if (req.method === 'GET' || req.method === 'HEAD') {
-        await serveStatic(req, res, routed.pathname);
+        await serveStatic(req, res, routed.pathname, baseHrefFor(url.pathname));
         return;
       }
       fail(res, new HttpError(405, 'METHOD_NOT_ALLOWED', '不支持的请求方法'));

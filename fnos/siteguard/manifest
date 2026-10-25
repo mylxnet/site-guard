@@ -1,5 +1,5 @@
 appname               = siteguard
-version               = 0.8.0
+version               = 0.8.2
 display_name          = 网站哨兵
 desc                  = 网站可用性与内容防篡改监测。定时抓取你指定的关键页面（首页/列表页/详情页），从页面内容判断是否正常打开、是否被改写，异常时发邮件告警。<br>数据全部保存在本机，不上传任何第三方。
 platform              = all
