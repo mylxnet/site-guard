@@ -6,13 +6,13 @@
 ![Node](https://img.shields.io/badge/node-22%20LTS-339933?logo=node.js&logoColor=white)
 ![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-f7df1e)
-![Version](https://img.shields.io/badge/version-0.7.3-orange)
+![Version](https://img.shields.io/badge/version-0.8.0-orange)
 ![Deploy](https://img.shields.io/badge/deploy-Docker%20Compose-0db7ed)
 
 [English](#english) | [中文](#中文)
 
-> ⚠️ **当前阶段**：`0.6.0` 已可真实抓取页面、四档判定、基线与差异，并在每轮巡检后发送**汇总邮件**（同类内容变更 6 小时冷却、恢复补发）；事件流、邮件设置与测试邮件接口可用；`.fpk` 已在飞牛 fnOS 实机安装验证通过，Docker 镜像已推送阿里云 ACR，正式前端面板尚未接入 API。
-> 想在电脑上试后端：`npm start` 后打开 `http://127.0.0.1:8686`；想看界面：打开 `prototype/index.html`。部署请以 [DEPLOY.md](doc/DEPLOY.md) 为目标流程参考。
+> ⚠️ **当前阶段**：`0.8.0` 起正式面板已接入真实 API——初始化/登录、站点与页面管理、巡检进度与日志、判定详情、差异与基线、事件流、邮件设置与测试邮件全部可用；`.fpk` 已在飞牛 fnOS 实机安装验证通过，Docker 镜像已推送阿里云 ACR。
+> 想在电脑上试：`npm start` 后打开 `http://127.0.0.1:8686`，首次会要求设置管理密码。`prototype/` 保留为设计参考（假数据）。部署请以 [DEPLOY.md](doc/DEPLOY.md) 为目标流程参考。
 
 ---
 
@@ -62,7 +62,7 @@
 
 构建、升级、卸载、日志位置与故障排查见 [DEPLOY.md](doc/DEPLOY.md) 第 1 节。
 
-**体验界面原型（现在就能做）**
+**看设计原型（可选）**
 
 ```bash
 # 方式一：直接双击
@@ -73,7 +73,7 @@ cd prototype && python3 -m http.server 8899
 # 打开 http://127.0.0.1:8899
 ```
 
-原型是纯静态假数据，右下角可切换「空状态 / 有数据 / 异常」三种场景。
+`prototype/` 是纯静态假数据的设计参考，右下角可切换「空状态 / 有数据 / 异常」三种场景；正式界面在 `public/`，随应用一起提供。
 
 #### 开发者（从源码构建）
 
@@ -90,7 +90,7 @@ npm test         # 111 条用例（node --test），当前全绿
 PORT=9000 DATA_DIR=./data TZ=Asia/Shanghai npm start
 ```
 
-首次打开会要求设置管理密码（至少 8 位），之后用该密码登录。给站点添加页面后点「立即巡检」建立基线，改动页面内容再跑一次即可看到差异；在 `PUT /api/settings` 里填好 SMTP 并调用 `POST /api/settings/test-mail` 验证后，每轮巡检的异常/变更会汇总成一封邮件。首页仍是服务状态页，界面原型在 `prototype/`。
+首次打开会要求设置管理密码（至少 8 位），之后用该密码登录。给站点添加页面后点「立即巡检」建立基线，改动页面内容再跑一次即可看到差异；在「设置 → 邮件通知」里填好 SMTP 并点「发送测试邮件」验证后，每轮巡检的异常/变更会汇总成一封邮件。面板四个页签（概览/监测/事件/设置）直接操作真实数据，无需再借道 HTTP 接口。
 
 ```bash
 # 打包飞牛原生应用（需要 fnpack，FNPACK_BIN 指向它或放进 PATH）
@@ -98,8 +98,8 @@ node scripts/build-fnos.mjs            # 出 dist/fnos/siteguard-<版本>-x86.fp
 node scripts/build-fnos.mjs --arch x64 # 只出一个架构
 
 # Docker 镜像（备用路径，已可构建）
-docker build -f deploy/Dockerfile -t site-guard:0.7.3 .
-docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.7.3
+docker build -f deploy/Dockerfile -t site-guard:0.8.0 .
+docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.8.0
 ```
 
 ### 🛠️ 技术栈
@@ -137,7 +137,7 @@ site-guard/
 │   └── images/            # README 截图
 ├── prototype/             # 界面原型（纯静态，可直接打开，不参与构建）
 ├── src/                   # 后端源码（server / routes / db / auth / scheduler / runner …）
-├── public/                # 正式前端（目前仅状态页，后续由 prototype 演进）
+├── public/                # 正式前端：index.html / style.css / app.js（四页签面板，直连真实 API）
 ├── fnos/                  # 飞牛包目录：manifest / cmd / config / wizard / ui
 ├── deploy/                # Dockerfile（Docker 镜像构建，备用路径）
 ├── test/                  # node:test 用例
@@ -145,11 +145,11 @@ site-guard/
 └── tools/                 # 运维小工具（备份导出等）
 ```
 
-> 当前 `public/` 只有服务状态页，`deploy/` 仍是空的备用路径；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 111 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、接口与网关/Socket。
+> 当前 `public/` 已由设计原型演进为正式面板（四页签 + 登录/初始化 + 弹窗），`prototype/` 仅作设计参考；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 111 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、接口与网关/Socket。
 
 ### 🖱️ 常用操作
 
-> 面板接入 API 后按下列方式操作；`0.6.0` 阶段这些能力由 HTTP 接口提供。
+> 以下操作在正式面板（`public/`）里直接可用，背后调用的是同源 `/api/*` 接口。
 
 | 想做什么 | 怎么做 |
 | --- | --- |
@@ -189,7 +189,7 @@ MIT License。
 
 **Site Guard** is a self-hosted website monitoring tool for your NAS. Instead of trusting HTTP 200, it fetches each key page and decides whether the **content** still looks like a healthy page — so a `502 Bad Gateway` served with status 200, a blank page, a maintenance page or a redirect to another domain is reported as an incident. It keeps a baseline of each page, reports content changes with a line diff, and sends **one digest email per run** to your inbox.
 
-Current stage: `0.6.0` fetches real pages, applies four-level verdicts, stores baselines, shows line diffs and sends one digest email per run with a 6-hour cooldown for repeated content changes. The final web UI is not yet wired to the API; the Docker image is provided (see Deploy).
+Current stage: `0.8.0` ships the real web UI (setup/login, sites and pages, live run progress and logs, verdict details, diffs and baselines, event feed, mail settings) wired to the API, on top of the existing four-level verdicts, baselines and digest emails.
 
 ### Tech Stack
 
@@ -215,4 +215,4 @@ MIT.
 
 ---
 
-<sub>by Mr lin · v0.7.3</sub>
+<sub>by Mr lin · v0.8.0</sub>

@@ -1,8 +1,8 @@
 # 网站哨兵 Site Guard · 开发技术文档
 
-> 版本：0.7.3 ｜ 日期：2026-10-26 ｜ 作者：by Mr lin
+> 版本：0.8.0 ｜ 日期：2026-10-26 ｜ 作者：by Mr lin
 > 读者：维护本项目的开发者。设计方案（为什么这么做）见 [DESIGN.md](DESIGN.md)；部署运维见 [DEPLOY.md](DEPLOY.md)。
-> 状态说明：`0.6.0` 已实现抓取、归一化、四档判定、基线/差异、邮件汇总与事件/设置接口。标注 `[已实现]` 的部分有代码与测试；未标注的为后续规范。
+> 状态说明：`0.8.0` 已实现抓取、归一化、四档判定、基线/差异、邮件汇总与事件/设置接口，以及接入真实 API 的正式前端面板。标注 `[已实现]` 的部分有代码与测试；未标注的为后续规范。
 
 ---
 
@@ -92,7 +92,9 @@ site-guard/
 │   ├── checker.js            # [已实现] 单页巡检编排（快照/检测/事件/基线落库）
 │   └── notify.js             # [已实现] 邮件设置、汇总模板、冷却与发送
 ├── public/
-│   └── index.html            # [已实现] 服务状态页；正式界面由 prototype 演进后接入 API
+│   ├── index.html            # [已实现] 正式面板：四页签 + 登录/初始化覆盖层 + 各类弹窗
+│   ├── style.css             # [已实现] 面板样式（含深色顶栏、状态徽标、弹窗、登录卡片）
+│   └── app.js                # [已实现] 前端逻辑：API 对接、渲染、轮询、表单与错误映射
 ├── deploy/
 │   └── Dockerfile            # [已实现] Docker 镜像构建（node:22-alpine，非 root + SQLite /data）
 ├── test/                     # node:test 用例
@@ -100,7 +102,7 @@ site-guard/
 └── tools/                    # 运维小工具（备份导出等）
 ```
 
-> 约定：`prototype/` 是**设计确认用的原型**，不参与构建；`public/` 才是真正交付的前端。两者视觉一致，但 `public/` 不含演示场景开关。
+> 约定：`prototype/` 是**设计确认用的原型**（假数据、带演示场景开关，不参与构建）；`public/` 才是真正交付的前端（四页签面板，直连真实 API）。0.8.0 起两者视觉一致，但只有 `public/` 会随 `.fpk` / 镜像交付。
 
 ---
 
@@ -605,11 +607,15 @@ const batchId = `${site.id}-${Date.now()}`;
 
 ### 7.6 前端
 
-- 无框架、无构建：`public/index.html` + `app.js` + `style.css`，与 `prototype/` 同源演进。
-- 视图切换通过 `hidden` 属性 + `aria-selected`，与原型一致。
-- 数据获取：`fetch('/api/...')`，401 时跳登录视图。
-- 巡检进行中：`POST /api/sites/:id/run` 拿 `batchId`，每 800ms 轮询 `GET /api/batches/:id`，展示进度条与日志；批次结束后停止轮询并刷新列表。
-- 所有用户输入在提交前做一次本地校验（与后端同规则），后端仍是最终裁判。
+- 无框架、无构建：`public/index.html` + `app.js` + `style.css`，由 `prototype/` 演进而来（原型仅作设计参考）。
+- API 基址推导：`/app/<name>/` 网关路径取 `/app/<name>/api`，直连取 `/api`；静态资源用相对路径，同源部署天然成立。
+- 登录态：`GET /api/state` 决定「初始化 / 登录 / 进入面板」；任何接口返回 401 都会弹出登录覆盖层并提示「登录状态已过期」。
+- 视图切换通过 `hidden` 属性 + `aria-selected`；顶栏「退出登录」调 `POST /api/logout` 并清空本地状态。
+- 数据获取：`GET /api/sites`、`/api/overview`、`/api/events?limit=200` 并行刷新；未巡检页面显示「未巡检」并排除在异常/待确认统计外。
+- 巡检进行中：`POST /api/sites/:id/run` 拿 `batchId`，每 800ms 轮询 `GET /api/batches/:id`，展示进度条与日志；批次结束按 `summary.verdicts` 汇总提示并刷新全量数据。单页复检走 `POST /api/pages/:id/run`（同步返回结果）。
+- 弹窗与校验：站点/页面/邮件表单提交前做本地校验，后端 `fields` 错误按字段回填到对应输入框；删除、设为基线均有二次确认。
+- 未实现的能力不做假控件：告警策略、巡检参数、修改密码、导出备份等后端没有接口的表单已从界面移除。
+- 每 60 秒静默刷新一次，页面隐藏、弹窗打开、巡检运行中、未登录时跳过。
 
 ---
 
@@ -631,7 +637,7 @@ const batchId = `${site.id}-${Date.now()}`;
 | `MAX_PAGES_PER_SITE` | `30` | 单站点页面上限 |
 | `ALLOW_PRIVATE_TARGETS` | `true` | 是否允许抓取 127.0.0.1/内网地址 |
 
-界面内可改的项（存 `settings` 表）：SMTP 全部参数、告警冷却、页面间隔、并发数、时区展示。
+界面内可改的项（存 `settings` 表）：SMTP 全部参数、告警冷却、面板地址。页面间隔、并发数、时区属于进程级配置，只能通过环境变量设置（`PAGE_GAP_MS` / `MAX_CONCURRENCY` / `TZ`）。
 
 ---
 

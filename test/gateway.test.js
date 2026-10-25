@@ -100,7 +100,10 @@ test('单页兑底：无扩展名路径返回 index.html，缺静态文件仍然
     assert.equal(spa.status, 200);
     assert.match(await spa.text(), /网站哨兵/);
 
-    const missingAsset = await fetch(`${base}/app/siteguard/app.js`, { headers: { accept: '*/*' } });
+    const asset = await fetch(`${base}/app/siteguard/app.js`, { headers: { accept: '*/*' } });
+    assert.equal(asset.status, 200);
+
+    const missingAsset = await fetch(`${base}/app/siteguard/missing-asset.js`, { headers: { accept: '*/*' } });
     assert.equal(missingAsset.status, 404);
 
     const traversal = await fetch(`${base}/app/siteguard/..%2F..%2Fpackage.json`, { headers: { accept: '*/*' } });

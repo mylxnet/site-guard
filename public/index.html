@@ -1,86 +1,321 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>网站哨兵 · 接口状态页</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body {
-      margin: 0;
-      padding: 48px 24px;
-      font: 15px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-    }
-    main { max-width: 720px; margin: 0 auto; }
-    h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: .5px; }
-    p.lead { margin: 0 0 28px; color: #94a3b8; }
-    .badge {
-      display: inline-block;
-      padding: 2px 10px;
-      border-radius: 999px;
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: #93c5fd;
-      font-size: 12px;
-      vertical-align: middle;
-    }
-    section { background: #111c31; border: 1px solid #1e293b; border-radius: 12px; padding: 20px 22px; margin-bottom: 16px; }
-    h2 { margin: 0 0 12px; font-size: 15px; color: #cbd5e1; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1e293b; }
-    th { color: #94a3b8; font-weight: 500; }
-    code {
-      font-family: ui-monospace, Consolas, monospace;
-      font-size: 12.5px;
-      background: #0b1424;
-      border: 1px solid #1e293b;
-      border-radius: 5px;
-      padding: 1px 5px;
-      color: #a5b4fc;
-    }
-    footer { margin-top: 28px; color: #64748b; font-size: 12px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网站哨兵</title>
+<link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <main>
-    <h1>网站哨兵 <span class="badge">v0.7.3 飞牛 fnOS 原生应用</span></h1>
-    <p class="lead">服务已启动，巡检会真实抓取页面。正式界面将在后续版本接入 <code>public/</code>，当前可用下方接口验证完整链路。</p>
+<body class="is-locked">
 
-    <section>
-      <h2>已实现</h2>
-      <table>
-        <tr><th>方法</th><th>路径</th><th>说明</th></tr>
-        <tr><td>GET</td><td><code>/api/health</code></td><td>健康检查（无需登录）</td></tr>
-        <tr><td>GET</td><td><code>/api/state</code></td><td>是否已初始化、是否已登录</td></tr>
-        <tr><td>POST</td><td><code>/api/setup</code></td><td>首次设置密码</td></tr>
-        <tr><td>POST</td><td><code>/api/login</code> · <code>/api/logout</code></td><td>登录 / 退出</td></tr>
-        <tr><td>GET/POST</td><td><code>/api/sites</code></td><td>站点列表 / 新建站点</td></tr>
-        <tr><td>PATCH/DELETE</td><td><code>/api/sites/:id</code></td><td>修改 / 删除站点</td></tr>
-        <tr><td>POST</td><td><code>/api/sites/:id/pages</code></td><td>新增页面</td></tr>
-        <tr><td>PATCH/DELETE</td><td><code>/api/pages/:id</code></td><td>修改 / 删除页面</td></tr>
-        <tr><td>POST</td><td><code>/api/sites/:id/run</code></td><td>手动巡检，返回 batchId</td></tr>
-        <tr><td>GET</td><td><code>/api/batches/:id</code></td><td>批次进度（前端轮询）</td></tr>
-        <tr><td>POST</td><td><code>/api/pages/:id/run</code></td><td>单页复检，返回判定与耗时</td></tr>
-        <tr><td>GET</td><td><code>/api/pages/:id/detail</code> · <code>/diff</code></td><td>判定详情 / 基线与最新快照的差异</td></tr>
-        <tr><td>POST</td><td><code>/api/pages/:id/accept</code></td><td>确认变更，把最新快照设为基线</td></tr>
-        <tr><td>GET</td><td><code>/api/overview</code></td><td>统计、待处理页面与最近事件</td></tr>
-        <tr><td>GET</td><td><code>/api/events</code></td><td>事件流（类型/站点筛选、分页）</td></tr>
-        <tr><td>GET/PUT</td><td><code>/api/settings</code></td><td>读取/保存邮件通知设置（密码脱敏）</td></tr>
-        <tr><td>POST</td><td><code>/api/settings/test-mail</code></td><td>发送测试邮件</td></tr>
-      </table>
+<!-- ============ 登录 / 初始化 ============ -->
+<div class="auth-root" id="authRoot">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <h1>网站哨兵</h1>
+        <p>关键页面巡检 · 内容异常与变更告警</p>
+      </div>
+    </div>
+
+    <p class="auth-lead" id="authLead">正在检查运行状态…</p>
+
+    <form class="auth-form" id="setupForm" hidden novalidate>
+      <label class="field">
+        <span>设置管理密码（至少 8 位）</span>
+        <input type="password" name="password" autocomplete="new-password" placeholder="至少 8 位">
+        <em class="err" data-err="password"></em>
+      </label>
+      <label class="field">
+        <span>再次输入密码</span>
+        <input type="password" name="confirm" autocomplete="new-password" placeholder="再输一次">
+        <em class="err" data-err="confirm"></em>
+      </label>
+      <button type="submit" class="btn primary">完成初始化</button>
+    </form>
+
+    <form class="auth-form" id="loginForm" hidden novalidate>
+      <label class="field">
+        <span>管理密码</span>
+        <input type="password" name="password" autocomplete="current-password" placeholder="输入管理密码">
+        <em class="err" data-err="password"></em>
+      </label>
+      <button type="submit" class="btn primary">登录</button>
+    </form>
+
+    <p class="auth-error" id="authError" role="alert"></p>
+    <p class="auth-foot"><span id="authVersion">v0.8.0</span> ｜ by Mr lin</p>
+  </div>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <h1>网站哨兵</h1>
+      <p>关键页面巡检 · 内容异常与变更告警</p>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="health-pill" id="healthPill">
+      <span class="dot"></span><span id="healthText">运行正常</span>
+    </div>
+    <div class="last-scan" id="nextRunLine">下一轮巡检 <strong id="nextRun">--:--</strong></div>
+    <button class="btn sm ghost" id="logoutBtn">退出登录</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="主导航">
+  <button class="tab active" role="tab" aria-selected="true" data-tab="overview">概览</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="monitors">监测</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="events">事件</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="settings">设置</button>
+</nav>
+
+<main class="page">
+
+  <!-- ============ 概览 ============ -->
+  <section class="view" id="view-overview">
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="overview-grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>需要处理</h2>
+          <span class="muted" id="attentionCount"></span>
+        </div>
+        <div class="attention-list" id="attentionList"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>最近事件</h2>
+          <button class="link-btn" data-goto="events">全部事件 →</button>
+        </div>
+        <ul class="event-feed" id="eventFeed"></ul>
+      </section>
+    </div>
+
+    <section class="card activity-card" id="activityCard">
+      <div class="card-head">
+        <h2>巡检活动</h2>
+        <span class="muted" id="activityHint">空闲中，等待下一个巡检周期</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+        <span class="progress-text" id="progressText">0%</span>
+      </div>
+      <pre class="log" id="activityLog" aria-live="polite"></pre>
     </section>
+  </section>
 
-    <section>
-      <h2>下一步</h2>
-      <p style="margin:0;color:#94a3b8">
-        告警已接入：一轮巡检结束后按事件生成一封汇总邮件，同类内容变更 6 小时内不重复发送，恢复单独补发。
-        0.7.0 起以飞牛 fnOS 原生应用（.fpk，统一网关 Unix Socket）交付，不再依赖 Docker；正式前端面板随后接入这些接口。
-      </p>
-    </section>
+  <!-- ============ 监测 ============ -->
+  <section class="view" id="view-monitors" hidden>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <h2 class="page-title">站点与页面</h2>
+        <span class="muted" id="monitorSummary"></span>
+      </div>
+      <div class="toolbar-right">
+        <div class="segmented" id="monitorFilter" role="group" aria-label="筛选">
+          <button class="seg active" data-filter="all">全部</button>
+          <button class="seg" data-filter="issue">有异常</button>
+          <button class="seg" data-filter="changed">内容变更</button>
+          <button class="seg" data-filter="normal">仅正常</button>
+        </div>
+        <button class="btn primary" id="addSiteBtn">＋ 新增站点</button>
+      </div>
+    </div>
 
-    <footer>v0.7.3 ｜ by Mr lin ｜ 自托管 · SQLite · 零原生依赖 · 单一依赖 nodemailer</footer>
-  </main>
+    <div class="site-list" id="siteList"></div>
+
+    <div class="empty-state" id="monitorEmpty" hidden>
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2"/>
+          <path d="M3 9h18M8 4v5"/>
+        </svg>
+      </div>
+      <h3>还没有站点</h3>
+      <p>添加一个站点，再挂上 3~8 个关键页面（主页、列表页、详情页）。首次巡检会自动建立基线，之后按日程比对。</p>
+      <ol class="steps">
+        <li><span>1</span>新增站点，填域名与巡检时间</li>
+        <li><span>2</span>添加关键页面，可填「必须包含的文字」</li>
+        <li><span>3</span>在设置里配好邮箱并发送测试邮件</li>
+        <li><span>4</span>收到异常邮件后看判定理由与差异</li>
+      </ol>
+      <button class="btn primary" id="addSiteBtn2">＋ 新增第一个站点</button>
+    </div>
+  </section>
+
+  <!-- ============ 事件 ============ -->
+  <section class="view" id="view-events" hidden>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <h2 class="page-title">事件日志</h2>
+        <span class="muted">一轮巡检一封汇总邮件 · 事件全量留在库里</span>
+      </div>
+      <div class="toolbar-right">
+        <div class="segmented" id="eventFilter" role="group" aria-label="事件类型筛选">
+          <button class="seg active" data-type="all">全部</button>
+          <button class="seg" data-type="bad">异常</button>
+          <button class="seg" data-type="suspect">可疑</button>
+          <button class="seg" data-type="unknown">无法确认</button>
+          <button class="seg" data-type="changed">内容变更</button>
+          <button class="seg" data-type="recovered">已恢复</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card table-card">
+      <div class="table-scroll">
+        <table class="data-table">
+          <colgroup>
+            <col style="width:150px">
+            <col style="width:190px">
+            <col style="width:104px">
+            <col>
+            <col style="width:86px">
+          </colgroup>
+          <thead>
+            <tr><th>时间</th><th>站点 / 页面</th><th>类型</th><th>判定理由</th><th>邮件</th></tr>
+          </thead>
+          <tbody id="eventBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state compact" id="eventEmpty" hidden>
+        <div class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h16M4 12h16M4 18h10"/>
+          </svg>
+        </div>
+        <h3>暂无事件</h3>
+        <p>巡检开始后，这里会记录每一次异常、可疑、内容变更与恢复。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="view" id="view-settings" hidden>
+    <div class="settings-grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>邮件通知</h2>
+          <span class="badge plain" id="smtpBadge">未启用</span>
+        </div>
+        <p class="card-desc">告警通过你自己的邮箱发出。QQ / 163 邮箱请使用「授权码」，不是登录密码。</p>
+
+        <form id="smtpForm" novalidate>
+          <label class="switch-row">
+            <input type="checkbox" name="enabled">
+            <span>启用邮件告警（一轮巡检最多一封汇总邮件）</span>
+          </label>
+
+          <div class="form-row">
+            <label class="field">
+              <span>SMTP 服务器</span>
+              <input name="host" placeholder="smtp.qq.com" autocomplete="off">
+              <em class="err" data-err="host"></em>
+            </label>
+            <label class="field narrow">
+              <span>端口</span>
+              <input name="port" inputmode="numeric" placeholder="465">
+              <em class="err" data-err="port"></em>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <label class="field">
+              <span>加密方式</span>
+              <select name="secure">
+                <option value="ssl">SSL（465 端口）</option>
+                <option value="starttls">STARTTLS（587 端口）</option>
+                <option value="none">不加密（仅内网）</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>账号</span>
+              <input name="user" placeholder="you@qq.com" autocomplete="off">
+              <em class="err" data-err="user"></em>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <label class="field">
+              <span>授权码 / 密码</span>
+              <input name="password" type="password" placeholder="留空表示不修改" autocomplete="new-password">
+              <em class="err" data-err="password"></em>
+            </label>
+            <label class="field">
+              <span>发件人</span>
+              <input name="from" placeholder="you@qq.com" autocomplete="off">
+              <em class="err" data-err="from"></em>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>收件人（多个用逗号分隔）</span>
+            <input name="to" placeholder="you@qq.com, ops@example.com" autocomplete="off">
+            <em class="err" data-err="to"></em>
+          </label>
+
+          <div class="form-row">
+            <label class="field narrow">
+              <span>告警冷却（小时）</span>
+              <input name="cooldownHours" inputmode="numeric" placeholder="6">
+              <em class="err" data-err="cooldownHours"></em>
+            </label>
+            <label class="field">
+              <span>面板地址（写进告警邮件，可留空）</span>
+              <input name="panelUrl" placeholder="http://NAS内网IP:8686" autocomplete="off">
+              <em class="err" data-err="panelUrl"></em>
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存设置</button>
+            <button type="button" class="btn ghost" id="testMailBtn">保存并发送测试邮件</button>
+            <span class="form-hint">测试邮件会用已保存的配置发送</span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>数据与访问</h2></div>
+        <dl class="kv">
+          <div><dt>数据库</dt><dd>SQLite 单文件（备份数据目录即可）</dd></div>
+          <div><dt>数据目录</dt><dd>随应用数据目录（Docker 部署为 <code>/data</code> 卷）</dd></div>
+          <div><dt>快照保留</dt><dd>每页最近 60 份，基线永久保留</dd></div>
+          <div><dt>访问方式</dt><dd>飞牛桌面应用入口 / 浏览器直连</dd></div>
+          <div><dt>版本</dt><dd><span id="settingsVersion">v0.8.0</span> · by Mr lin</dd></div>
+        </dl>
+        <p class="form-hint" style="margin-top:12px">数据与访问信息为只读；告警策略中的冷却时间已在上方邮件设置里。</p>
+      </section>
+    </div>
+  </section>
+
+</main>
+
+<footer class="app-footer">
+  <span><span id="footerVersion">v0.8.0</span> ｜ by Mr lin</span>
+  <span class="muted">自托管 · SQLite · 数据保存在本机</span>
+</footer>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<div class="modal-root" id="modalRoot" hidden></div>
+
+<script src="app.js"></script>
 </body>
 </html>
