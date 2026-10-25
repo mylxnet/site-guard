@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+# 安装文件落地之前的钩子。
+# 此时 TRIM_PKGVAR 目录可能尚未创建，往那里写东西会 Permission denied，
+# 所以这里保持空操作，初始化动作全部放到 install_callback 与 cmd/main start。
+
+exit 0

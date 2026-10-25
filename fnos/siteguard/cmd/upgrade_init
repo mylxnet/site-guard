@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+# 升级前调用（应用此时已被自动停止）。
+# 数据在 SQLite 文件里，位于 data-share 目录，升级不会动它，所以无需迁移；
+# 这里只清掉上一版可能残留的 socket 与 PID 文件，避免新版本起来时被旧状态卡住。
+
+set -u
+
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/siteguard.log"
+SOCKET_PATH="${TRIM_APPDEST:-/tmp}/app.sock"
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - upgrade_init: old=${TRIM_OLD_APPVER:-?} new=${TRIM_APPVER:-?}" >> "$LOG_FILE" 2>/dev/null
+
+rm -f "${TRIM_PKGVAR:-/tmp}/app.pid" "$SOCKET_PATH" 2>/dev/null
+exit 0

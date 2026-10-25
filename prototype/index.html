@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网站哨兵 · 界面原型 v0.7.2</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <h1>网站哨兵</h1>
+      <p>关键页面巡检 · 内容异常与变更告警</p>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="health-pill" id="healthPill">
+      <span class="dot"></span><span id="healthText">运行正常</span>
+    </div>
+    <div class="last-scan" id="nextRunLine">下一轮巡检 <strong id="nextRun">--:--</strong></div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="主导航">
+  <button class="tab active" role="tab" aria-selected="true" data-tab="overview">概览</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="monitors">监测</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="events">事件</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="settings">设置</button>
+</nav>
+
+<main class="page">
+
+  <!-- ============ 概览 ============ -->
+  <section class="view" id="view-overview">
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="overview-grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>需要处理</h2>
+          <span class="muted" id="attentionCount"></span>
+        </div>
+        <div class="attention-list" id="attentionList"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>最近事件</h2>
+          <button class="link-btn" data-goto="events">全部事件 →</button>
+        </div>
+        <ul class="event-feed" id="eventFeed"></ul>
+      </section>
+    </div>
+
+    <section class="card activity-card" id="activityCard">
+      <div class="card-head">
+        <h2>巡检活动</h2>
+        <span class="muted" id="activityHint">空闲中，等待下一个巡检周期</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+        <span class="progress-text" id="progressText">0%</span>
+      </div>
+      <pre class="log" id="activityLog" aria-live="polite"></pre>
+    </section>
+  </section>
+
+  <!-- ============ 监测 ============ -->
+  <section class="view" id="view-monitors" hidden>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <h2 class="page-title">站点与页面</h2>
+        <span class="muted" id="monitorSummary"></span>
+      </div>
+      <div class="toolbar-right">
+        <div class="segmented" id="monitorFilter" role="group" aria-label="筛选">
+          <button class="seg active" data-filter="all">全部</button>
+          <button class="seg" data-filter="issue">有异常</button>
+          <button class="seg" data-filter="changed">内容变更</button>
+          <button class="seg" data-filter="normal">仅正常</button>
+        </div>
+        <button class="btn primary" id="addSiteBtn">＋ 新增站点</button>
+      </div>
+    </div>
+
+    <div class="site-list" id="siteList"></div>
+
+    <div class="empty-state" id="monitorEmpty" hidden>
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2"/>
+          <path d="M3 9h18M8 4v5"/>
+        </svg>
+      </div>
+      <h3>还没有站点</h3>
+      <p>添加一个站点，再挂上 3~8 个关键页面（主页、列表页、详情页）。首次巡检会自动建立基线，之后按日程比对。</p>
+      <ol class="steps">
+        <li><span>1</span>新增站点，填域名与巡检时间</li>
+        <li><span>2</span>添加关键页面，可填「必须包含的文字」</li>
+        <li><span>3</span>在设置里配好邮箱并发送测试邮件</li>
+        <li><span>4</span>收到异常邮件后看判定理由与差异</li>
+      </ol>
+      <button class="btn primary" id="addSiteBtn2">＋ 新增第一个站点</button>
+    </div>
+  </section>
+
+  <!-- ============ 事件 ============ -->
+  <section class="view" id="view-events" hidden>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <h2 class="page-title">事件日志</h2>
+        <span class="muted">保留 180 天 · 一轮巡检一封汇总邮件</span>
+      </div>
+      <div class="toolbar-right">
+        <div class="segmented" id="eventFilter" role="group" aria-label="事件类型筛选">
+          <button class="seg active" data-type="all">全部</button>
+          <button class="seg" data-type="bad">异常</button>
+          <button class="seg" data-type="suspect">可疑</button>
+          <button class="seg" data-type="unknown">无法确认</button>
+          <button class="seg" data-type="changed">内容变更</button>
+          <button class="seg" data-type="recovered">已恢复</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card table-card">
+      <div class="table-scroll">
+        <table class="data-table">
+          <colgroup>
+            <col style="width:150px">
+            <col style="width:190px">
+            <col style="width:104px">
+            <col>
+            <col style="width:86px">
+          </colgroup>
+          <thead>
+            <tr><th>时间</th><th>站点 / 页面</th><th>类型</th><th>判定理由</th><th>邮件</th></tr>
+          </thead>
+          <tbody id="eventBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state compact" id="eventEmpty" hidden>
+        <div class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h16M4 12h16M4 18h10"/>
+          </svg>
+        </div>
+        <h3>暂无事件</h3>
+        <p>巡检开始后，这里会记录每一次异常、可疑、内容变更与恢复。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="view" id="view-settings" hidden>
+    <div class="settings-grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>邮件通知</h2>
+          <span class="badge ok" id="smtpBadge">已配置</span>
+        </div>
+        <p class="card-desc">告警通过你自己的邮箱发出。QQ / 163 邮箱请使用「授权码」，不是登录密码。</p>
+
+        <form id="smtpForm" novalidate>
+          <div class="form-row">
+            <label class="field">
+              <span>SMTP 服务器</span>
+              <input name="host" placeholder="smtp.qq.com" autocomplete="off">
+              <em class="err" data-err="host"></em>
+            </label>
+            <label class="field narrow">
+              <span>端口</span>
+              <input name="port" inputmode="numeric" placeholder="465">
+              <em class="err" data-err="port"></em>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <label class="field">
+              <span>加密方式</span>
+              <select name="secure">
+                <option value="ssl">SSL（465 端口）</option>
+                <option value="starttls">STARTTLS（587 端口）</option>
+                <option value="none">不加密（仅内网）</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>账号</span>
+              <input name="user" placeholder="you@qq.com" autocomplete="off">
+              <em class="err" data-err="user"></em>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <label class="field">
+              <span>授权码 / 密码</span>
+              <input name="pass" type="password" placeholder="留空表示不修改" autocomplete="new-password">
+              <em class="err" data-err="pass"></em>
+            </label>
+            <label class="field">
+              <span>发件人</span>
+              <input name="from" placeholder="网站哨兵 <you@qq.com>" autocomplete="off">
+              <em class="err" data-err="from"></em>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>收件人（多个用逗号分隔）</span>
+            <input name="to" placeholder="you@qq.com, ops@example.com" autocomplete="off">
+            <em class="err" data-err="to"></em>
+          </label>
+
+          <label class="switch-row">
+            <input type="checkbox" name="insecureTls">
+            <span>忽略服务器证书错误（仅自建邮件服务器需要）</span>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存设置</button>
+            <button type="button" class="btn ghost" id="testMailBtn">发送测试邮件</button>
+            <span class="form-hint">演示模式不会真的发信</span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>告警策略</h2></div>
+        <form id="alertForm" novalidate>
+          <div class="form-row">
+            <label class="field">
+              <span>同类告警冷却（小时）</span>
+              <input name="cooldown" inputmode="numeric" value="6">
+              <em class="hint">同一页面同一类型在该时间内只发一次；恢复通知不受限</em>
+              <em class="err" data-err="cooldown"></em>
+            </label>
+            <label class="field">
+              <span>一轮巡检的汇总方式</span>
+              <select name="digest">
+                <option value="summary" selected>一封汇总邮件</option>
+                <option value="perpage">每个页面一封</option>
+              </select>
+            </label>
+          </div>
+          <label class="switch-row">
+            <input type="checkbox" name="recoverNotice" checked>
+            <span>异常恢复时补发一封「已恢复」通知</span>
+          </label>
+          <label class="switch-row">
+            <input type="checkbox" name="onlyChange" checked>
+            <span>仅在状态变化时发信（持续异常不重复提醒）</span>
+          </label>
+          <label class="field">
+            <span>敏感词（逗号分隔，命中时邮件标题加急）</span>
+            <input name="keywords" value="赌博, 加微信, 私彩, hacked, 博彩">
+            <em class="hint">用于识别挂马广告、博彩植入等典型篡改</em>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存策略</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>巡检参数</h2></div>
+        <form id="crawlForm" novalidate>
+          <div class="form-row">
+            <label class="field">
+              <span>单页超时（秒）</span>
+              <input name="timeout" inputmode="numeric" value="20">
+              <em class="err" data-err="timeout"></em>
+            </label>
+            <label class="field">
+              <span>同站页面间隔（秒）</span>
+              <input name="gap" inputmode="numeric" value="3">
+              <em class="hint">对别人的站点要克制</em>
+              <em class="err" data-err="gap"></em>
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="field">
+              <span>不同站点并发数</span>
+              <select name="concurrency">
+                <option value="1">1（最保守）</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>时区</span>
+              <input name="tz" value="Asia/Shanghai" readonly>
+              <em class="hint">“每天 09:00”按此时区执行</em>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存参数</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>数据与访问</h2></div>
+        <dl class="kv">
+          <div><dt>数据目录</dt><dd><code>/data</code>（备份此目录即可）</dd></div>
+          <div><dt>事件保留</dt><dd>180 天</dd></div>
+          <div><dt>快照保留</dt><dd>每页最近 60 份，基线永久保留</dd></div>
+          <div><dt>访问地址</dt><dd><code>http://NAS内网IP:8686</code></dd></div>
+          <div><dt>版本</dt><dd>v0.7.2 · by Mr lin</dd></div>
+        </dl>
+        <div class="form-actions">
+          <button class="btn ghost" id="backupBtn">导出备份</button>
+          <button class="btn ghost" id="changePwdBtn">修改密码</button>
+        </div>
+        <p class="form-hint">演示模式：以上操作仅提示，不会真正执行。</p>
+      </section>
+    </div>
+  </section>
+
+</main>
+
+<footer class="app-footer">
+  <span>v0.7.2 ｜ by Mr lin</span>
+  <span class="muted">本页为界面原型，数据为演示用假数据</span>
+</footer>
+
+<!-- 演示场景切换 -->
+<aside class="demo-panel" id="demoPanel">
+  <div class="demo-head">
+    <span>演示场景</span>
+    <button class="icon-btn" id="demoHide" aria-label="隐藏">×</button>
+  </div>
+  <div class="demo-body">
+    <button class="seg" data-scene="empty">空状态</button>
+    <button class="seg active" data-scene="normal">有数据</button>
+    <button class="seg" data-scene="abnormal">异常</button>
+  </div>
+</aside>
+<button class="demo-fab" id="demoShow" hidden>演示</button>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<div class="modal-root" id="modalRoot" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

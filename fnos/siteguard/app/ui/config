@@ -1,0 +1,14 @@
+{
+    ".url": {
+        "siteguard.main": {
+            "title": "网站哨兵",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "",
+            "gatewayPrefix": "/app/siteguard",
+            "gatewaySocket": "app.sock",
+            "url": "/app/siteguard",
+            "allUsers": true
+        }
+    }
+}

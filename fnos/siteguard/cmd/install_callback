@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+# 安装文件落地之后调用。站点数据在首次启动时由应用自己初始化（SQLite 建表），
+# 这里只做两件幂等的事：
+#   1. 把数据目录准备好（data-share 由系统创建，这里兜底 mkdir）；
+#   2. 写一行安装日志，便于回溯。
+# 没有向导输入，所以不写 app.conf；运行时全部走 cmd/main 里的环境变量默认值。
+
+set -u
+
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/siteguard.log"
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+
+# 授权目录列表用冒号分隔，取第一个；Windows 盘符（E:/...）只在本地模拟时出现，不能从第一个冒号截断。
+case "${TRIM_DATA_SHARE_PATHS:-}" in
+  [A-Za-z]:/*) DATA_DIR="${TRIM_DATA_SHARE_PATHS}" ;;
+  *) DATA_DIR="${TRIM_DATA_SHARE_PATHS:-}"; DATA_DIR="${DATA_DIR%%:*}" ;;
+esac
+[ -n "$DATA_DIR" ] || DATA_DIR="${TRIM_PKGVAR:-/tmp}/data"
+
+mkdir -p "$DATA_DIR" 2>/dev/null || {
+  echo "无法创建数据目录：$DATA_DIR" > "${TRIM_TEMP_LOGFILE:-/dev/null}"
+  exit 1
+}
+
+log_msg "install_callback: data dir ready (${DATA_DIR}), version=${TRIM_APPVER:-unknown}"
+exit 0

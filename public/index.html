@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>网站哨兵 · 接口状态页</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      padding: 48px 24px;
+      font: 15px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: .5px; }
+    p.lead { margin: 0 0 28px; color: #94a3b8; }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #93c5fd;
+      font-size: 12px;
+      vertical-align: middle;
+    }
+    section { background: #111c31; border: 1px solid #1e293b; border-radius: 12px; padding: 20px 22px; margin-bottom: 16px; }
+    h2 { margin: 0 0 12px; font-size: 15px; color: #cbd5e1; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1e293b; }
+    th { color: #94a3b8; font-weight: 500; }
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12.5px;
+      background: #0b1424;
+      border: 1px solid #1e293b;
+      border-radius: 5px;
+      padding: 1px 5px;
+      color: #a5b4fc;
+    }
+    footer { margin-top: 28px; color: #64748b; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>网站哨兵 <span class="badge">v0.7.2 飞牛 fnOS 原生应用</span></h1>
+    <p class="lead">服务已启动，巡检会真实抓取页面。正式界面将在后续版本接入 <code>public/</code>，当前可用下方接口验证完整链路。</p>
+
+    <section>
+      <h2>已实现</h2>
+      <table>
+        <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+        <tr><td>GET</td><td><code>/api/health</code></td><td>健康检查（无需登录）</td></tr>
+        <tr><td>GET</td><td><code>/api/state</code></td><td>是否已初始化、是否已登录</td></tr>
+        <tr><td>POST</td><td><code>/api/setup</code></td><td>首次设置密码</td></tr>
+        <tr><td>POST</td><td><code>/api/login</code> · <code>/api/logout</code></td><td>登录 / 退出</td></tr>
+        <tr><td>GET/POST</td><td><code>/api/sites</code></td><td>站点列表 / 新建站点</td></tr>
+        <tr><td>PATCH/DELETE</td><td><code>/api/sites/:id</code></td><td>修改 / 删除站点</td></tr>
+        <tr><td>POST</td><td><code>/api/sites/:id/pages</code></td><td>新增页面</td></tr>
+        <tr><td>PATCH/DELETE</td><td><code>/api/pages/:id</code></td><td>修改 / 删除页面</td></tr>
+        <tr><td>POST</td><td><code>/api/sites/:id/run</code></td><td>手动巡检，返回 batchId</td></tr>
+        <tr><td>GET</td><td><code>/api/batches/:id</code></td><td>批次进度（前端轮询）</td></tr>
+        <tr><td>POST</td><td><code>/api/pages/:id/run</code></td><td>单页复检，返回判定与耗时</td></tr>
+        <tr><td>GET</td><td><code>/api/pages/:id/detail</code> · <code>/diff</code></td><td>判定详情 / 基线与最新快照的差异</td></tr>
+        <tr><td>POST</td><td><code>/api/pages/:id/accept</code></td><td>确认变更，把最新快照设为基线</td></tr>
+        <tr><td>GET</td><td><code>/api/overview</code></td><td>统计、待处理页面与最近事件</td></tr>
+        <tr><td>GET</td><td><code>/api/events</code></td><td>事件流（类型/站点筛选、分页）</td></tr>
+        <tr><td>GET/PUT</td><td><code>/api/settings</code></td><td>读取/保存邮件通知设置（密码脱敏）</td></tr>
+        <tr><td>POST</td><td><code>/api/settings/test-mail</code></td><td>发送测试邮件</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>下一步</h2>
+      <p style="margin:0;color:#94a3b8">
+        告警已接入：一轮巡检结束后按事件生成一封汇总邮件，同类内容变更 6 小时内不重复发送，恢复单独补发。
+        0.7.0 起以飞牛 fnOS 原生应用（.fpk，统一网关 Unix Socket）交付，不再依赖 Docker；正式前端面板随后接入这些接口。
+      </p>
+    </section>
+
+    <footer>v0.7.2 ｜ by Mr lin ｜ 自托管 · SQLite · 零原生依赖 · 单一依赖 nodemailer</footer>
+  </main>
+</body>
+</html>

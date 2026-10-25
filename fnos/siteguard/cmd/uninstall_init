@@ -1,0 +1,27 @@
+#!/bin/bash
+#
+# 卸载前调用。fnOS 卸载默认保留 var 与 shares（用户数据），
+# 只有 wizard/uninstall 里勾选了“彻底删除数据”（wizard_purge=true）才清理。
+# 没勾选、或该版本不注入向导变量时，一律保留数据——安全方向是“别删”。
+
+set -u
+
+PURGE="${wizard_purge:-}"
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/siteguard.log"
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - uninstall_init: purge=${PURGE:-unset}" >> "$LOG_FILE" 2>/dev/null
+
+if [ "$PURGE" = "true" ]; then
+  # Windows 盘符（E:/...）只在本地模拟时出现，不能从第一个冒号截断。
+  case "${TRIM_DATA_SHARE_PATHS:-}" in
+    [A-Za-z]:/*) DATA_DIR="${TRIM_DATA_SHARE_PATHS}" ;;
+    *) DATA_DIR="${TRIM_DATA_SHARE_PATHS:-}"; DATA_DIR="${DATA_DIR%%:*}" ;;
+  esac
+  if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
+    rm -rf "$DATA_DIR" 2>/dev/null
+  fi
+  rm -f "${TRIM_PKGVAR:-/tmp}/siteguard.log" "${TRIM_PKGVAR:-/tmp}/app.pid" 2>/dev/null
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - uninstall_init: data purged" >> "$LOG_FILE" 2>/dev/null
+fi
+
+exit 0

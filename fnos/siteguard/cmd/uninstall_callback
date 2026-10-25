@@ -1,0 +1,9 @@
+#!/bin/bash
+#
+# 卸载文件清理之后调用。数据清理已在 uninstall_init 完成；
+# 这里只做幂等兜底：确保不会留下孤儿 socket 文件。
+
+set -u
+
+rm -f "${TRIM_APPDEST:-/tmp}/app.sock" 2>/dev/null
+exit 0

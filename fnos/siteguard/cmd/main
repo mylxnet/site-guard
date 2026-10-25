@@ -1,0 +1,234 @@
+#!/bin/bash
+#
+# 网站哨兵 · 飞牛 fnOS 生命周期脚本
+#
+#   start   启动成功 exit 0，失败 exit 1（错误写进 TRIM_TEMP_LOGFILE，用户能看到）
+#   stop    停止成功 exit 0
+#   status  运行中 exit 0，未运行 exit 3 —— fnOS 靠这个退出码决定要不要拉起应用
+#
+# 运行方式与本地开发一致，只靠环境变量切换：
+#   SOCKET_PATH     非空 → 监听 Unix Socket（统一网关）
+#   GATEWAY_PREFIX  统一网关路径前缀
+#   DATA_DIR        SQLite 与运行数据目录
+
+set -u
+
+APPNAME="siteguard"
+APP_ENTRY="src/server.js"
+GATEWAY_PREFIX="/app/siteguard"
+
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/siteguard.log"
+PID_FILE="${TRIM_PKGVAR:-/tmp}/app.pid"
+SOCKET_PATH="${TRIM_APPDEST:-/tmp}/app.sock"
+
+SRC_DIR=""
+NODE_BIN=""
+DATA_DIR=""
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+
+# fnOS 在失败时会弹出 TRIM_TEMP_LOGFILE 的内容；不写就只有“原因未知”。
+die() {
+  log_msg "ERROR: $1"
+  if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+    {
+      echo "$1"
+      if [ -f "$LOG_FILE" ]; then
+        echo ""
+        echo "---- 最近日志 ----"
+        tail -n 10 "$LOG_FILE" 2>/dev/null
+      fi
+    } > "$TRIM_TEMP_LOGFILE" 2>/dev/null
+  fi
+  exit 1
+}
+
+check_process() {
+  kill -0 "$1" 2>/dev/null
+}
+
+# TRIM_APPDEST 在不同 fnOS 版本里布局不同：老版本多一层 target/。
+resolve_src_dir() {
+  local candidate
+  for candidate in "${TRIM_APPDEST}/server" "${TRIM_APPDEST}/target/server"; do
+    if [ -f "${candidate}/${APP_ENTRY}" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# 运行时优先级：包内自带的 Node → 应用中心装的 nodejs_v22 → 系统 PATH 里的 node。
+resolve_node() {
+  local arch runtime candidate
+  arch="$(uname -m 2>/dev/null)"
+  case "$arch" in
+    x86_64 | amd64) runtime="x64" ;;
+    aarch64 | arm64) runtime="arm64" ;;
+    *) runtime="" ;;
+  esac
+
+  if [ -n "$runtime" ]; then
+    candidate="${SRC_DIR}/runtime/${runtime}/node"
+    if [ -f "$candidate" ]; then
+      # 在 Windows/macOS 上打的包可能丢可执行位；架构不对也跑不起来。
+      # 所以不只看权限位，实际执行一次确认可用，再决定用不用它。
+      [ -x "$candidate" ] || chmod +x "$candidate" 2>/dev/null
+      if "$candidate" -e 1 >/dev/null 2>&1; then
+        printf '%s' "$candidate"
+        return 0
+      fi
+      log_msg "内置运行时不可执行，改用系统 Node：$candidate"
+    fi
+  fi
+
+  for candidate in /var/apps/nodejs_v22/target/bin/node /vol4/@appcenter/nodejs_v22/bin/node; do
+    if [ -x "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+
+  command -v node 2>/dev/null
+}
+
+status_app() {
+  if [ -f "$PID_FILE" ]; then
+    local pid
+    pid="$(head -n 1 "$PID_FILE" 2>/dev/null | tr -d '[:space:]')"
+    if [ -n "$pid" ] && check_process "$pid"; then
+      return 0
+    fi
+    rm -f "$PID_FILE" 2>/dev/null
+  fi
+  return 1
+}
+
+wait_ready() {
+  local i=0
+  local url="http://localhost${GATEWAY_PREFIX}/api/health"
+
+  # Windows（Git Bash）下跑本地模拟时没有 AF_UNIX，curl 探不了 socket，
+  # 退化成“等 5 秒看进程还在不在”；fnOS 是 Linux，永远走下面的严格探活。
+  case "$(uname -s 2>/dev/null)" in
+    MINGW* | MSYS* | CYGWIN*)
+      sleep 5
+      status_app
+      return $?
+      ;;
+  esac
+
+  # 没有 curl 就没法探活，退化成“等 3 秒看进程还在不在”。
+  if ! command -v curl >/dev/null 2>&1; then
+    sleep 3
+    status_app
+    return $?
+  fi
+
+  while [ "$i" -lt 20 ]; do
+    if curl -fsS --max-time 2 --unix-socket "$SOCKET_PATH" "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    status_app || return 1
+    sleep 1
+    i=$((i + 1))
+  done
+  return 1
+}
+
+start_app() {
+  if status_app; then
+    log_msg "already running, pid=$(cat "$PID_FILE" 2>/dev/null)"
+    return 0
+  fi
+
+  [ -n "${TRIM_APPDEST:-}" ] || die "缺少 TRIM_APPDEST 环境变量，找不到应用目录"
+
+  SRC_DIR="$(resolve_src_dir)" || die "找不到应用文件（server/ 或 target/server/），安装包可能不完整"
+  NODE_BIN="$(resolve_node)" || true
+  [ -n "$NODE_BIN" ] || die "找不到 Node.js 运行时：安装包缺少 runtime/，系统也没有可用的 node"
+
+  # 授权目录列表用冒号分隔，取第一个；set -u 下必须给默认值，否则未声明时直接报 unbound。
+  # 形如 E:/... 的 Windows 盘符只在本地模拟时出现，不能从第一个冒号截断。
+  case "${TRIM_DATA_SHARE_PATHS:-}" in
+    [A-Za-z]:/*) DATA_DIR="${TRIM_DATA_SHARE_PATHS}" ;;
+    *) DATA_DIR="${TRIM_DATA_SHARE_PATHS:-}"; DATA_DIR="${DATA_DIR%%:*}" ;;
+  esac
+  [ -n "$DATA_DIR" ] || DATA_DIR="${TRIM_PKGVAR:-/tmp}/data"
+  mkdir -p "$DATA_DIR" 2>/dev/null || die "无法创建数据目录：$DATA_DIR"
+  mkdir -p "${TRIM_PKGVAR:-/tmp}" 2>/dev/null
+
+  if [ -z "${TZ:-}" ] && [ -r /etc/timezone ]; then
+    TZ="$(head -n 1 /etc/timezone 2>/dev/null | tr -d '[:space:]')"
+  fi
+  [ -n "${TZ:-}" ] || TZ="Asia/Shanghai"
+
+  log_msg "starting: node=${NODE_BIN} src=${SRC_DIR} data=${DATA_DIR} socket=${SOCKET_PATH}"
+  cd "$SRC_DIR" || die "无法进入应用目录：$SRC_DIR"
+
+  DATA_DIR="$DATA_DIR" \
+    GATEWAY_PREFIX="$GATEWAY_PREFIX" \
+    SOCKET_PATH="$SOCKET_PATH" \
+    LOG_LEVEL="${LOG_LEVEL:-info}" \
+    TZ="$TZ" \
+    nohup "$NODE_BIN" "$APP_ENTRY" >>"$LOG_FILE" 2>&1 &
+  echo "$!" >"$PID_FILE"
+
+  if wait_ready; then
+    log_msg "started, pid=$(cat "$PID_FILE" 2>/dev/null)"
+    return 0
+  fi
+
+  # 启动失败则收掉残留进程，避免半死状态占着 socket。
+  stop_app >/dev/null 2>&1
+  die "网站哨兵启动失败，日志：${LOG_FILE}"
+}
+
+stop_app() {
+  log_msg "stopping..."
+
+  if [ -f "$PID_FILE" ]; then
+    local pid
+    pid="$(head -n 1 "$PID_FILE" 2>/dev/null | tr -d '[:space:]')"
+    if [ -n "$pid" ] && check_process "$pid"; then
+      kill -TERM "$pid" 2>/dev/null
+      local i=0
+      while check_process "$pid" && [ "$i" -lt 10 ]; do
+        sleep 1
+        i=$((i + 1))
+      done
+      if check_process "$pid"; then
+        log_msg "TERM 超时，发送 KILL 给 ${pid}"
+        kill -KILL "$pid" 2>/dev/null
+      fi
+    fi
+    rm -f "$PID_FILE" 2>/dev/null
+  fi
+
+  rm -f "$SOCKET_PATH" 2>/dev/null
+  log_msg "stopped"
+  return 0
+}
+
+case "${1:-}" in
+start)
+  start_app
+  ;;
+stop)
+  stop_app
+  ;;
+status)
+  if status_app; then
+    exit 0
+  else
+    exit 3
+  fi
+  ;;
+*)
+  echo "unknown command: ${1:-}" >&2
+  exit 1
+  ;;
+esac

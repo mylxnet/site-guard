@@ -1,0 +1,14 @@
+node_modules/
+data/
+dist/
+build/
+*.fpk
+# fpk 的可执行部分由 scripts/build-fnos.mjs 组装，属于构建产物
+fnos/siteguard/app/server/
+*.log
+*.tmp
+.DS_Store
+.env
+.env.*
+!.env.example
+doc/images/*.tmp
