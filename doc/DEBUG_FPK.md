@@ -63,9 +63,11 @@ fnOS 1.x 校验器对 wizard 内容敏感（本地手册 §10 已预警）。此
 - 若可 SSH 到 fnOS，`appcenter-cli install-fpk` 能输出更详细的错误，比反复试装高效。
 - 生成/打包动作一律在 WSL 内完成。
 
-## 八、当前状态（0.7.2）
+## 八、当前状态（0.7.3）
 
-- `0.7.2` 已删除 `wizard/install` 与 `wizard/uninstall`，并在 WSL 内重新出包：
-  - `dist/fnos/siteguard-0.7.2-x86.fpk`
-  - `dist/fnos/siteguard-0.7.2-arm.fpk`
-- **待实机试装验证**：若 0.7.2 仍报「包格式不符合系统版本要求」，说明除 wizard 外还有其它变量，按 §五「待测项」顺序继续二分（下一个为 `app/ui/config` 统一网关入口）。
+- `0.7.2` 删除 `wizard/install` 与 `wizard/uninstall` 后重新出包，**已在飞牛 fnOS 实机安装成功**：应用中心装包通过、桌面图标打开后正常显示状态页（`v0.7.x 飞牛 fnOS 原生应用` + 接口清单），统一网关入口可用。
+- 因此 §四 根因结论成立，§五 待测项无需继续二分。
+- `0.7.3` 为验收后的同形态升版（仅版本号与文档变更），重新出包：
+  - `dist/fnos/siteguard-0.7.3-x86.fpk`
+  - `dist/fnos/siteguard-0.7.3-arm.fpk`
+- 仍待补测：升级（旧版 → 新版覆盖安装）、卸载（保留数据默认值）两条生命周期流程。

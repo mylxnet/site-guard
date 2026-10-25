@@ -1,6 +1,6 @@
 {
   "name": "site-guard",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "网站哨兵 - 网站可用性/内容防篡改 + 目录文件完整性监测，单容器自托管",
   "type": "module",
   "private": true,

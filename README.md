@@ -6,12 +6,12 @@
 ![Node](https://img.shields.io/badge/node-22%20LTS-339933?logo=node.js&logoColor=white)
 ![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-f7df1e)
-![Version](https://img.shields.io/badge/version-0.7.2-orange)
+![Version](https://img.shields.io/badge/version-0.7.3-orange)
 ![Deploy](https://img.shields.io/badge/deploy-Docker%20Compose-0db7ed)
 
 [English](#english) | [中文](#中文)
 
-> ⚠️ **当前阶段**：`0.6.0` 已可真实抓取页面、四档判定、基线与差异，并在每轮巡检后发送**汇总邮件**（同类内容变更 6 小时冷却、恢复补发）；事件流、邮件设置与测试邮件接口可用；`.fpk` 与 Docker 镜像均已可构建，正式前端面板尚未接入 API。
+> ⚠️ **当前阶段**：`0.6.0` 已可真实抓取页面、四档判定、基线与差异，并在每轮巡检后发送**汇总邮件**（同类内容变更 6 小时冷却、恢复补发）；事件流、邮件设置与测试邮件接口可用；`.fpk` 已在飞牛 fnOS 实机安装验证通过，Docker 镜像已推送阿里云 ACR，正式前端面板尚未接入 API。
 > 想在电脑上试后端：`npm start` 后打开 `http://127.0.0.1:8686`；想看界面：打开 `prototype/index.html`。部署请以 [DEPLOY.md](doc/DEPLOY.md) 为目标流程参考。
 
 ---
@@ -98,8 +98,8 @@ node scripts/build-fnos.mjs            # 出 dist/fnos/siteguard-<版本>-x86.fp
 node scripts/build-fnos.mjs --arch x64 # 只出一个架构
 
 # Docker 镜像（备用路径，已可构建）
-docker build -f deploy/Dockerfile -t site-guard:0.7.2 .
-docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.7.2
+docker build -f deploy/Dockerfile -t site-guard:0.7.3 .
+docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.7.3
 ```
 
 ### 🛠️ 技术栈
@@ -215,4 +215,4 @@ MIT.
 
 ---
 
-<sub>by Mr lin · v0.7.2</sub>
+<sub>by Mr lin · v0.7.3</sub>

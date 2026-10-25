@@ -1,6 +1,6 @@
 # 网站哨兵 Site Guard · 部署手册
 
-> 版本：0.7.2 ｜ 日期：2026-10-25 ｜ 作者：by Mr lin
+> 版本：0.7.3 ｜ 日期：2026-10-26 ｜ 作者：by Mr lin
 
 ---
 
@@ -9,8 +9,8 @@
 | 版本 | 状态 | 能做什么 |
 | --- | --- | --- |
 | 0.6.0 | 后端 + 检测引擎 + 邮件告警 | 可在电脑上用 `npm start` 跑通全链路（站点/页面、真实抓取、四档判定、基线差异、汇总邮件、事件流与设置）；界面只有状态页 |
-| 0.7.0（当前） | **飞牛原生应用（.fpk）已可打包** | `node scripts/build-fnos.mjs` 出 x86/arm 两个安装包，走统一网关 + Unix Socket，**不依赖 Docker**；包内自带 Node 运行时；**尚未在实机 fnOS 上安装验证** |
-| 0.8.0 | Docker 镜像（备用路径） | 已可构建：`docker build -f deploy/Dockerfile ...`，镜像已推阿里云 ACR；第 2 节起是这条路径 |
+| 0.7.3（当前） | **飞牛原生应用（.fpk）已实机验证** | `node scripts/build-fnos.mjs` 出 x86/arm 两个安装包，走统一网关 + Unix Socket，**不依赖 Docker**；包内自带 Node 运行时；已在飞牛 fnOS 实机安装通过，桌面图标打开后正常显示状态页 |
+| Docker 镜像（0.7.2 起） | 备用路径，已可用 | `docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile ...`；镜像已推阿里云 ACR（`0.7.3` 与 `latest`）；第 2 节起是这条路径 |
 | 1.0.0 | 正式版 | 正式前端面板 + 实机部署验收 |
 
 > **本文档的推荐路径是第 1 节（原生应用）**；第 2 节起的 Docker 流程是备用方案，镜像已产出、可直接执行。
@@ -37,8 +37,8 @@ node scripts/build-fnos.mjs --no-pack       # 只组装 app/server，不调 fnpa
 
 | 文件 | 说明 |
 | --- | --- |
-| `dist/fnos/siteguard-0.7.0-x86.fpk` | Intel/AMD 机型（platform=x86） |
-| `dist/fnos/siteguard-0.7.0-arm.fpk` | ARM 机型（platform=arm） |
+| `dist/fnos/siteguard-<版本>-x86.fpk` | Intel/AMD 机型（platform=x86），当前为 `siteguard-0.7.3-x86.fpk` |
+| `dist/fnos/siteguard-<版本>-arm.fpk` | ARM 机型（platform=arm），当前为 `siteguard-0.7.3-arm.fpk` |
 
 脚本做了四件事：组装 `fnos/siteguard/app/server/`（`src` + `public` + 生产依赖，`npm ci --omit=dev`）→ 下载官方 Node 二进制，**只取 `bin/node`** 放进 `server/runtime/<arch>/` → 权限归一（目录 755 / 文件 644，`cmd/*` 与 `runtime/<arch>/node` 为 755）→ 按架构改写 manifest 的 `platform` 后 `fnpack build`，退出时把 manifest 还原。
 
@@ -84,7 +84,7 @@ node scripts/build-fnos.mjs --no-pack       # 只组装 app/server，不调 fnpa
 FAKE=/tmp/sg-fnos && mkdir -p "$FAKE/var" "$FAKE/data"
 TRIM_APPDEST="$PWD/fnos/siteguard/app" \
 TRIM_PKGVAR="$FAKE/var" TRIM_DATA_SHARE_PATHS="$FAKE/data" \
-TRIM_TEMP_LOGFILE="$FAKE/temp.log" TRIM_APPVER=0.7.0 \
+TRIM_TEMP_LOGFILE="$FAKE/temp.log" TRIM_APPVER=0.7.3 \
   bash -c 'bash fnos/siteguard/cmd/main status; echo "status=$?"; \
            bash fnos/siteguard/cmd/main start;  echo "start=$?"; \
            bash fnos/siteguard/cmd/main status; echo "status=$?"; \
@@ -204,26 +204,34 @@ docker compose logs -f --tail=50
 
 ```dockerfile
 FROM node:22-alpine
-WORKDIR /app
-ENV NODE_ENV=production
 
-# 依赖只有 nodemailer，纯 JS，无编译步骤
+ENV NODE_ENV=production \
+    PORT=8686 \
+    DATA_DIR=/data \
+    TZ=Asia/Shanghai
+
+WORKDIR /app
+
+# 依赖只有 nodemailer，纯 JS，无编译步骤；国内源加速
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --registry=https://registry.npmmirror.com
+RUN npm config set registry https://registry.npmmirror.com \
+    && npm config set replace-registry-host always \
+    && npm ci --omit=dev \
+    && npm cache clean --force
 
 COPY src ./src
 COPY public ./public
 
-ENV DATA_DIR=/data PORT=8686 TZ=Asia/Shanghai
-RUN mkdir -p /data && addgroup -S app && adduser -S app -G app && chown -R app:app /data /app
-USER app
+# SQLite 数据目录（单文件），以非 root 用户运行
+RUN mkdir -p /data && chown -R node:node /data
+VOLUME /data
+USER node
 
 EXPOSE 8686
-VOLUME ["/data"]
-HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:8686/api/health || exit 1
 CMD ["node", "src/server.js"]
 ```
+
+> 上面即仓库里的 `deploy/Dockerfile` 实际内容；健康检查交由 compose 的 `healthcheck` 或外部探活，镜像本身不内置。
 
 ### 4.2 本地构建与试跑
 
@@ -240,11 +248,11 @@ docker run --rm -p 8686:8686 -v $PWD/data:/data -e TZ=Asia/Shanghai site-guard:d
 
 ```bash
 # 注意：需加 --provenance=false --sbom=false，否则 buildx 会生成阿里云 ACR 不支持的 OCI attestation 清单（报 unknown manifest class）
-docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile -t site-guard:0.7.2 .
-docker tag site-guard:0.7.2 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.7.2
-docker tag site-guard:0.7.2 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
+docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile -t site-guard:0.7.3 .
+docker tag site-guard:0.7.3 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.7.3
+docker tag site-guard:0.7.3 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
 docker login registry.cn-hangzhou.aliyuncs.com
-docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.7.2
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.7.3
 docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
 ```
 
