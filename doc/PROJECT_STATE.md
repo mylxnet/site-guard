@@ -23,8 +23,8 @@
 | 事件流与邮件设置接口（0.6.0） | ✅ 完成 |
 | **飞牛原生应用 .fpk（包目录/生命周期脚本/打包脚本，0.7.0）** | ✅ 完成，已出 x86 与 arm 两包；**实机安装已通过（0.7.2 验证，0.7.3 为同一形态升版）** |
 | 正式前端面板（`public/` 接入 API，0.8.0） | ✅ 完成：四页签 + 初始化/登录 + 站点页面 CRUD + 真实巡检进度 + 判定详情/差异/基线 + 事件流 + 邮件设置；浏览器实测通过 |
-| Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（0.8.2 / latest） |
-| **发布（GitHub tag + Release）** | ✅ `tag v0.8.2` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8） |
+| Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（0.8.3 / latest），仓库已设为公开，可匿名拉取 |
+| **发布（GitHub tag + Release）** | ✅ `tag v0.8.3` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8） |
 
 > 说明：0.8.0 起整个闭环都能在界面上完成——“初始化 → 建站点/页面 → 巡检（真实进度与日志）→ 看判定与差异 → 确认基线 → 收到汇总邮件”，抓取与 SMTP 都是真实链路；0.7.0 起可打包成飞牛原生安装包（不依赖 Docker），0.7.2 已在飞牛 fnOS 实机安装并打开。
 
@@ -129,8 +129,9 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 - **原生应用已在实机验证（0.7.2）**：`.fpk` 在飞牛 fnOS 实机安装成功，桌面图标打开后能进入统一网关 iframe 入口；根因与二分过程见 `doc/DEBUG_FPK.md`。
 - **0.8.2 已在 fnOS 实机复核通过**：0.8.1 的样式问题已解决，0.8.2 修复后初始化、登录、巡检与测试邮件均在实机正常（2026-10-26 确认）。
-- ARM 包（`siteguard-0.8.2-arm.fpk`）只完成了打包与结构检查，没有在 ARM 机器上跑过。
-- Docker 已落地为 `deploy/Dockerfile`（node:22-alpine、非 root、SQLite `/data` 卷），镜像已推阿里云 ACR（`0.8.2` / `latest`）；`docker-compose.yml` 尚未产出（如需要再补）。
+- **0.8.3 未做实机复核**：只在自动化测试（115 条）与 Docker 冒烟里验证过；忽略规则改动不涉及网关与生命周期，风险低，但仍建议装一次确认。
+- ARM 包（`siteguard-0.8.2-arm.fpk` / `siteguard-0.8.3-arm.fpk`）只完成了打包与结构检查，没有在 ARM 机器上跑过。
+- Docker 已落地为 `deploy/Dockerfile`（node:22-alpine、非 root、SQLite `/data` 卷），镜像已推阿里云 ACR（`0.8.3` / `latest`，仓库公开、可匿名拉取）；`docker-compose.yml` 尚未产出（如需要再补）。
 - 侵权发现仅做降级处理（详见 DESIGN 2.2 R6），不做全网检索。
 - demo 为纯静态假数据，不发请求、不写真数据；真实数据只能通过 API 写入。
 - 检测引擎只做静态 HTML 抓取，不执行 JS；SPA 会判 `unknown`（无法确认），不引入 Headless 浏览器。
@@ -168,6 +169,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 | 版本 | 日期 | 内容 |
 | --- | --- | --- |
+| 0.8.3 | 2026-10-26 | 修复「改忽略规则后仍报内容变更、必须手动重建基线」：基线存的是建基线时的未过滤文本，规则只在抓取时过滤当前文本，两侧不对称。改为比对前用当前规则过滤基线（`baselineText`），`contentChanged` 比过滤后哈希、差异与 R-08/R-14 基线字数也按过滤后计算；基线原文不改写，删规则可恢复；新增 3 条用例，115 条全绿；升版 0.8.3、重出 x86/arm 包、重建镜像并开启 ACR 仓库公开；发布 `tag v0.8.3` 与 GitHub Release（见 §8） |
 | 0.8.2 | 2026-10-26 | 修复实机反馈：飞牛网关反代改写 `Host`，`Origin` 与 `Host` 对不上导致初始化/登录 403「跨站请求被拒绝」；前端所有 API 请求带 `x-siteguard-client: 1`，服务端见到即视为同源并跳过比对，缺头仍严格校验、白名单照常生效；新增对应用例，112 条全绿；curl 对照 403/200 与浏览器网关裸前缀登录实测通过；实机复核初始化/登录正常；升版 0.8.2、重出 x86/arm 包并重建镜像；发布 `tag v0.8.2` 与 GitHub Release（见 §8） |
 | 0.8.1 | 2026-10-26 | 修复实机反馈：飞牛桌面入口 `/app/siteguard` 无尾斜杠导致 `style.css` / `app.js` 解析到 `/app/*` 并 404，面板无样式；服务端按请求路径注入 `<base>`（网关 `/app/siteguard/`、直连 `/`），CSP `base-uri` 由 `'none'` 改 `'self'`；新增网关/直连/SPA 兜底的 `<base>` 回归断言；111 条用例全绿；以网关模式 + 裸前缀在浏览器复测通过；升版 0.8.1、重出 x86/arm 包并重建镜像 |
 | 0.8.0 | 2026-10-26 | 正式前端面板落地：`public/index.html` + `style.css` + `app.js`（约 1000 行）替代原状态页，接入初始化/登录、站点页面 CRUD、巡检批次轮询与日志、判定详情、差异、设为基线、事件流、邮件设置与测试邮件；未支持的表单控件全部移除；网关静态资源断言更新（`app.js` 200、缺失资源 404）；111 条用例全绿；本机浏览器实测四页签与弹窗通过；升版 0.8.0 并同步文档，重出 x86/arm 包与镜像 |
@@ -190,6 +192,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 | 版本 | tag | 日期 | Release | 附件 |
 | --- | --- | --- | --- | --- |
+| 0.8.3 | `v0.8.3`（`f98727a`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.3 | `siteguard-0.8.3-x86.fpk`（43.2MB / 45,295,004 字节）、`siteguard-0.8.3-arm.fpk`（43.3MB / 45,417,854 字节）；镜像 `0.8.3` + `latest`，digest `sha256:c60c5ff1…` |
 | 0.8.2 | `v0.8.2`（`1d17241`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.2 | `siteguard-0.8.2-x86.fpk`（43.2MB）、`siteguard-0.8.2-arm.fpk`（43.3MB） |
 
 **发布流程（下次照做）**
@@ -204,4 +207,4 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 **已知未发布项**
 
-- 上游版本（0.1.0~0.8.1）当时未打 tag，仓库中不存在对应 tag；`v0.8.2` 是第一个 tag。
+- 上游版本（0.1.0~0.8.2）当时未打 tag，仓库中不存在对应 tag；`v0.8.2` 是第一个 tag。
