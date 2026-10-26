@@ -46,6 +46,7 @@
 
 **调整**
 - 版本号统一 0.8.4；文档同步 README 当前阶段、PROJECT_STATE、DESIGN 计划表、PROJECT 状态说明、DEPLOY 版本表与打包示例、TEST 新增 3.8 与视口版本、DEBUG_FPK 当前状态。
+- 已出 x86/arm 两个 `.fpk`、构建并推送 ACR 镜像 `0.8.4` + `latest`，发布 `tag v0.8.4` 与 GitHub Release（见 PROJECT_STATE §8）。
 
 ### 0.8.3 - 2026-10-26
 
