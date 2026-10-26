@@ -42,7 +42,7 @@
 | npm registry | `https://registry.npmmirror.com` |
 | apt 源 | 阿里云镜像（`mirrors.aliyun.com`） |
 | 源码仓 | `E:\work\site-guard`（分支 `main`） |
-| Docker | WSL 内已装 Docker 29.8.0（镜像构建/推送在此执行） |
+| Docker | 装在默认发行版 `lxsyzd`（`/usr/bin/docker`，socket 可用）；**项目专属 `site-guard` 发行版里没有 docker**，镜像构建/推送一律 `wsl -d lxsyzd --cd /mnt/e/work/site-guard -- docker ...` |
 | 自动化测试 | Windows 侧 Node v22.23.2 直接 `npm test`（无需 WSL，也不依赖 `node_modules`） |
 
 ### 2.1 常用命令
