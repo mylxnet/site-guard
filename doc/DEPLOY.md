@@ -1,6 +1,6 @@
 # 网站哨兵 Site Guard · 部署手册
 
-> 版本：0.8.4 ｜ 日期：2026-10-26 ｜ 作者：by Mr lin
+> 版本：0.8.5 ｜ 日期：2026-10-26 ｜ 作者：by Mr lin
 
 ---
 
@@ -13,8 +13,9 @@
 | 0.8.1 | 正式前端面板 + 飞牛安装包 | 四页签面板接入真实 API；修复飞牛桌面入口（`/app/siteguard` 无尾斜杠）下 CSS/JS 404（服务端注入 `<base>`）；实机已确认样式正常 |
 | 0.8.2 | 同源校验修复 | 飞牛网关反代改写 `Host` 导致初始化/登录 403「跨站请求被拒绝」；前端请求带 `x-siteguard-client: 1`，服务端视为同源并跳过 `Origin`/`Host` 比对，缺头仍严格校验；`node scripts/build-fnos.mjs` 出 x86/arm 两个包；fnOS 实机已验证（初始化/登录正常） |
 | 0.8.3 | 忽略规则即时生效 | 比对前用当前忽略规则重新过滤基线正文（`baselineText`），哈希、差异与 R-08/R-14 基线字数都按过滤后计算；改忽略规则立即生效，不再需要「设为新基线」；`npm test` 115 条全绿 |
-| 0.8.4（当前） | **手机端可用性修复** | 页签加 `flex: none` 不再被压成 1px；`max-width:720px` 下页面表格改卡片，操作按钮换行到底部、不再跑出屏幕；390×844 设备模拟与 1280×800 桌面复核通过；本次为纯前端样式改动，`npm test` 115 条仍全绿 |
-| Docker 镜像（0.7.2 起） | 备用路径，已可用 | `docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile ...`；镜像已推阿里云 ACR（`0.8.4` / `latest`，公开可匿名拉取）；第 2 节起是这条路径 |
+| 0.8.4 | 手机端可用性修复 | 页签加 `flex: none` 不再被压成 1px；`max-width:720px` 下页面表格改卡片，操作按钮换行到底部、不再跑出屏幕；390×844 设备模拟与 1280×800 桌面复核通过；本次为纯前端样式改动，`npm test` 115 条仍全绿 |
+| 0.8.5（当前） | **概览页布局调整** | 「需要处理」与「最近事件」由左右并列改为上下全宽；1280×800 实测两卡均宽 1132px、间距 12px，小屏无横向滚动；纯前端样式改动，`npm test` 115 条仍全绿 |
+| Docker 镜像（0.7.2 起） | 备用路径，已可用 | `docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile ...`；镜像已推阿里云 ACR（`0.8.4` / `latest`，公开可匿名拉取；0.8.5 尚未构建推送）；第 2 节起是这条路径 |
 | 1.0.0 | 正式版 | 实机复核新面板 + 升级/卸载补测 |
 
 > **本文档的推荐路径是第 1 节（原生应用）**；第 2 节起的 Docker 流程是备用方案，镜像已产出、可直接执行。
@@ -41,8 +42,8 @@ node scripts/build-fnos.mjs --no-pack       # 只组装 app/server，不调 fnpa
 
 | 文件 | 说明 |
 | --- | --- |
-| `dist/fnos/siteguard-<版本>-x86.fpk` | Intel/AMD 机型（platform=x86），当前为 `siteguard-0.8.4-x86.fpk` |
-| `dist/fnos/siteguard-<版本>-arm.fpk` | ARM 机型（platform=arm），当前为 `siteguard-0.8.4-arm.fpk` |
+| `dist/fnos/siteguard-<版本>-x86.fpk` | Intel/AMD 机型（platform=x86），当前为 `siteguard-0.8.5-x86.fpk` |
+| `dist/fnos/siteguard-<版本>-arm.fpk` | ARM 机型（platform=arm），当前为 `siteguard-0.8.5-arm.fpk` |
 
 脚本做了四件事：组装 `fnos/siteguard/app/server/`（`src` + `public` + 生产依赖，`npm ci --omit=dev`）→ 下载官方 Node 二进制，**只取 `bin/node`** 放进 `server/runtime/<arch>/` → 权限归一（目录 755 / 文件 644，`cmd/*` 与 `runtime/<arch>/node` 为 755）→ 按架构改写 manifest 的 `platform` 后 `fnpack build`，退出时把 manifest 还原。
 
@@ -88,7 +89,7 @@ node scripts/build-fnos.mjs --no-pack       # 只组装 app/server，不调 fnpa
 FAKE=/tmp/sg-fnos && mkdir -p "$FAKE/var" "$FAKE/data"
 TRIM_APPDEST="$PWD/fnos/siteguard/app" \
 TRIM_PKGVAR="$FAKE/var" TRIM_DATA_SHARE_PATHS="$FAKE/data" \
-TRIM_TEMP_LOGFILE="$FAKE/temp.log" TRIM_APPVER=0.8.4 \
+TRIM_TEMP_LOGFILE="$FAKE/temp.log" TRIM_APPVER=0.8.5 \
   bash -c 'bash fnos/siteguard/cmd/main status; echo "status=$?"; \
            bash fnos/siteguard/cmd/main start;  echo "start=$?"; \
            bash fnos/siteguard/cmd/main status; echo "status=$?"; \
@@ -252,11 +253,11 @@ docker run --rm -p 8686:8686 -v $PWD/data:/data -e TZ=Asia/Shanghai site-guard:d
 
 ```bash
 # 注意：需加 --provenance=false --sbom=false，否则 buildx 会生成阿里云 ACR 不支持的 OCI attestation 清单（报 unknown manifest class）
-docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile -t site-guard:0.8.4 .
-docker tag site-guard:0.8.4 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.8.4
-docker tag site-guard:0.8.4 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
+docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile -t site-guard:0.8.5 .
+docker tag site-guard:0.8.5 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.8.5
+docker tag site-guard:0.8.5 registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
 docker login registry.cn-hangzhou.aliyuncs.com
-docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.8.4
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:0.8.5
 docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/site-guard:latest
 ```
 

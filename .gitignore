@@ -3,6 +3,7 @@ data/
 dist/
 build/
 *.fpk
+.trae-html-share-packages/
 # fpk 的可执行部分由 scripts/build-fnos.mjs 组装，属于构建产物
 fnos/siteguard/app/server/
 *.log
