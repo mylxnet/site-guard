@@ -42,8 +42,11 @@
 - 小屏复核：仍为上下排列，`document.scrollWidth` 未超视口，无横向滚动。
 - `npm test` 115 条全绿（本次为纯 CSS 改动，未新增用例）。
 
-**调整**
+**文档**
 - 版本号统一 0.8.5；文档同步 README 当前阶段、PROJECT_STATE、DESIGN 计划表、PROJECT 状态说明、DEPLOY 版本表与打包示例、TEST 新增 3.9、DEBUG_FPK 当前状态。
+
+**交付**
+- 已出 x86/arm 两个 `.fpk`（`siteguard-0.8.5-x86.fpk` 45,297,387 字节 / `siteguard-0.8.5-arm.fpk` 45,418,806 字节），构建并推送 ACR 镜像 `0.8.5` + `latest`（digest `sha256:065a50e9…`），发布 `tag v0.8.5` 与 GitHub Release（见 PROJECT_STATE §8）。
 
 ### 0.8.4 - 2026-10-26
 

@@ -23,8 +23,8 @@
 | 事件流与邮件设置接口（0.6.0） | ✅ 完成 |
 | **飞牛原生应用 .fpk（包目录/生命周期脚本/打包脚本，0.7.0）** | ✅ 完成，已出 x86 与 arm 两包；**实机安装已通过（0.7.2 验证，0.7.3 为同一形态升版）** |
 | 正式前端面板（`public/` 接入 API，0.8.0） | ✅ 完成：四页签 + 初始化/登录 + 站点页面 CRUD + 真实巡检进度 + 判定详情/差异/基线 + 事件流 + 邮件设置；浏览器实测通过；0.8.4 修复手机端页签塌陷与页面表格溢出；0.8.5 概览页「需要处理」与「最近事件」改为上下全宽 |
-| Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（0.8.4 / latest），仓库已设为公开，可匿名拉取 |
-| **发布（GitHub tag + Release）** | ✅ `tag v0.8.4` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8） |
+| Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（0.8.5 / latest，digest `sha256:065a50e9…`），仓库已设为公开，可匿名拉取 |
+| **发布（GitHub tag + Release）** | ✅ `tag v0.8.5` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8） |
 
 > 说明：0.8.0 起整个闭环都能在界面上完成——“初始化 → 建站点/页面 → 巡检（真实进度与日志）→ 看判定与差异 → 确认基线 → 收到汇总邮件”，抓取与 SMTP 都是真实链路；0.7.0 起可打包成飞牛原生安装包（不依赖 Docker），0.7.2 已在飞牛 fnOS 实机安装并打开。
 
@@ -131,9 +131,9 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 - **0.8.2 已在 fnOS 实机复核通过**：0.8.1 的样式问题已解决，0.8.2 修复后初始化、登录、巡检与测试邮件均在实机正常（2026-10-26 确认）。
 - **0.8.3 未做实机复核**：只在自动化测试（115 条）与 Docker 冒烟里验证过；忽略规则改动不涉及网关与生命周期，风险低，但仍建议装一次确认。
 - **0.8.4 未做实机复核**：已通过 Chrome DevTools 手机模拟（390×844×3）、桌面 1280×800 复核、Docker 冒烟与 115 条自动化测试；x86/arm 包已出、镜像已推 ACR，但尚未在飞牛 fnOS 实机安装确认。
-- **0.8.5 未做实机复核**：本次为纯前端样式（概览页两卡改上下全宽），已通过 1280×800 桌面实测与小屏复核、115 条自动化测试；尚未出包，也未经 fnOS 实机确认。
-- ARM 包（`siteguard-0.8.3-arm.fpk` / `siteguard-0.8.4-arm.fpk`）只完成了打包与结构检查，没有在 ARM 机器上跑过。
-- Docker 已落地为 `deploy/Dockerfile`（node:22-alpine、非 root、SQLite `/data` 卷），镜像已推阿里云 ACR（`0.8.4` / `latest`，仓库公开、可匿名拉取）；`docker-compose.yml` 尚未产出（如需要再补）。
+- **0.8.5 未做实机复核**：本次为纯前端样式（概览页两卡改上下全宽），已通过 1280×800 桌面实测与小屏复核、115 条自动化测试、容器冒烟（`version":"0.8.5"`）；x86/arm 包与镜像 0.8.5 已产出，尚未在 fnOS 实机安装确认。
+- ARM 包（`siteguard-0.8.3-arm.fpk` / `siteguard-0.8.4-arm.fpk` / `siteguard-0.8.5-arm.fpk`）只完成了打包与结构检查，没有在 ARM 机器上跑过。
+- Docker 已落地为 `deploy/Dockerfile`（node:22-alpine、非 root、SQLite `/data` 卷），镜像已推阿里云 ACR（`0.8.5` / `latest`，仓库公开、可匿名拉取）；`docker-compose.yml` 尚未产出（如需要再补）。
 - 侵权发现仅做降级处理（详见 DESIGN 2.2 R6），不做全网检索。
 - demo 为纯静态假数据，不发请求、不写真数据；真实数据只能通过 API 写入。
 - 检测引擎只做静态 HTML 抓取，不执行 JS；SPA 会判 `unknown`（无法确认），不引入 Headless 浏览器。
@@ -196,6 +196,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 | 版本 | tag | 日期 | Release | 附件 |
 | --- | --- | --- | --- | --- |
+| 0.8.5 | `v0.8.5`（`f7c7e11`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.5 | `siteguard-0.8.5-x86.fpk`（43.2MB / 45,297,387 字节）、`siteguard-0.8.5-arm.fpk`（43.3MB / 45,418,806 字节）；镜像 `0.8.5` + `latest`，digest `sha256:065a50e9…` |
 | 0.8.4 | `v0.8.4`（`f3d8612`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.4 | `siteguard-0.8.4-x86.fpk`（43.2MB / 45,293,566 字节）、`siteguard-0.8.4-arm.fpk`（43.3MB / 45,416,964 字节）；镜像 `0.8.4` + `latest`，digest `sha256:eb111d66…` |
 | 0.8.3 | `v0.8.3`（`f98727a`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.3 | `siteguard-0.8.3-x86.fpk`（43.2MB / 45,295,004 字节）、`siteguard-0.8.3-arm.fpk`（43.3MB / 45,417,854 字节）；镜像 `0.8.3` + `latest`，digest `sha256:c60c5ff1…` |
 | 0.8.2 | `v0.8.2`（`1d17241`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.2 | `siteguard-0.8.2-x86.fpk`（43.2MB）、`siteguard-0.8.2-arm.fpk`（43.3MB） |

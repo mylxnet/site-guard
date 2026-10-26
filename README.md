@@ -55,7 +55,7 @@
 
 > 0.7.0 起交付 **飞牛原生应用（.fpk）**，不需要 Docker、不占端口。
 
-1. 构建端跑 `node scripts/build-fnos.mjs`，得到 `dist/fnos/siteguard-<版本>-x86.fpk`（或 `-arm.fpk`，按 NAS 架构选）。
+1. 从 [最新 Release](https://github.com/mylxnet/site-guard/releases/latest) 下载对应架构的 `.fpk`（Intel/AMD 选 `-x86`，ARM 选 `-arm`）；也可在构建端跑 `node scripts/build-fnos.mjs` 自行出包。
 2. NAS 上打开应用中心 → 本地安装 → 选中 `.fpk` → 安装。
 3. 桌面点开「网站哨兵」，它在统一网关下以 `/app/siteguard` 打开。
 4. 设置管理密码 → 添加站点与关键页面 → 填 SMTP 发测试邮件 → 点「立即巡检」建基线。
