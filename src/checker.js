@@ -9,7 +9,7 @@ import {
   addEvent
 } from './db.js';
 import { fetchPage as defaultFetch } from './fetch-page.js';
-import { extractHtml } from './extract.js';
+import { extractHtml, applyIgnorePatterns } from './extract.js';
 import { evaluate } from './verdict.js';
 import { hashText, diffLines } from './diff.js';
 
@@ -33,13 +33,23 @@ export function createChecker({ db, config, logger, fetchPage = defaultFetch }) 
     // 基线必须在抓取前读：本轮结果只和“本轮之前”的基线比。
     const baseline = page.baseline_id ? getSnapshot(db, page.baseline_id) : null;
 
+    // 基线正文是“建立基线那一刻”的文本，忽略规则之后可能被改过。
+    // 比对前先用当前规则过滤一遍旧基线，改规则才能立即生效、不必重建基线；
+    // 字数也按过滤后计算，否则新增规则会让 R-08「正文骤降」误报。
+    const baselineText = baseline ? applyIgnorePatterns(baseline.text, page.ignorePatterns) : '';
+    const baselineHash = baseline ? hashText(baselineText) : null;
+
     const fetched = await fetchPage(page.url, fetchOptions);
     const extracted = fetched.ok
       ? extractHtml(fetched.html, { ignorePatterns: page.ignorePatterns })
       : { title: '', text: '', lines: [], charCount: 0, ignoredLines: 0 };
 
     const baselineInfo = baseline
-      ? { textLen: Number(baseline.meta.textLen ?? baseline.text.length), hash: baseline.hash, title: baseline.meta.title ?? '' }
+      ? {
+          textLen: baselineText.replace(/\n/g, '').length,
+          hash: baselineHash,
+          title: baseline.meta.title ?? ''
+        }
       : null;
 
     const { verdict, reasons } = evaluate({
@@ -55,7 +65,7 @@ export function createChecker({ db, config, logger, fetchPage = defaultFetch }) 
     });
 
     const hash = hashText(extracted.text);
-    const contentChanged = Boolean(baseline) && hash !== baseline.hash;
+    const contentChanged = Boolean(baseline) && hash !== baselineHash;
 
     const snapshotMeta = {
       verdict,
@@ -113,7 +123,7 @@ export function createChecker({ db, config, logger, fetchPage = defaultFetch }) 
       message = '抓取成功但没有可保存的正文';
     } else if (contentChanged) {
       pageChanged = true;
-      diff = diffLines(baseline.text, extracted.text);
+      diff = diffLines(baselineText, extracted.text);
       message = `内容有变化：新增 ${diff.addedCount} 行、删除 ${diff.removedCount} 行`;
       if (!prevChanged) event = { type: 'changed', message };
     } else {

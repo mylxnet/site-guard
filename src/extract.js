@@ -65,6 +65,26 @@ export function compileIgnorePatterns(patterns = []) {
   return out;
 }
 
+/** 从已归一化的行里剔除命中忽略规则的整行；规则写错只跳过这一条。 */
+export function filterIgnoredLines(lines, patterns = []) {
+  const compiled = compileIgnorePatterns(patterns);
+  const list = Array.isArray(lines) ? lines : [];
+  if (!compiled.length) return [...list];
+  return list.filter((line) => !compiled.some((regex) => regex.test(line)));
+}
+
+/**
+ * 对已提取的正文（\n 分隔）重新套用忽略规则。
+ * 基线存的是“建立基线时”的正文，规则之后可能被改过；
+ * 比对前先过滤旧基线，才能让改规则立即生效，不必手动重建基线。
+ */
+export function applyIgnorePatterns(text, patterns = []) {
+  const raw = typeof text === 'string' ? text : '';
+  if (!raw) return '';
+  const lines = raw.split(/\r?\n/).map(collapse).filter(Boolean);
+  return filterIgnoredLines(lines, patterns).join('\n');
+}
+
 export function extractTitle(html, { maxLength = 200 } = {}) {
   const match = /<title[^>]*>([\s\S]*?)<\/title\s*>/i.exec(String(html ?? ''));
   if (!match) return '';
@@ -104,9 +124,8 @@ export function extractHtml(html, { ignorePatterns = [], maxTitle = 200 } = {}) 
     work = '';
   }
 
-  const patterns = compileIgnorePatterns(ignorePatterns);
   const seen = work.split(/\r?\n/).map(collapse).filter(Boolean);
-  const kept = seen.filter((line) => !patterns.some((regex) => regex.test(line)));
+  const kept = filterIgnoredLines(seen, ignorePatterns);
 
   const text = kept.join('\n');
   return {

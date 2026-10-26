@@ -1,6 +1,6 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDb, createSite, createPage, getPage, latestCheck, getSnapshot, listEvents } from '../src/db.js';
+import { openDb, createSite, createPage, updatePage, getPage, latestCheck, getSnapshot, listEvents } from '../src/db.js';
 import { createChecker } from '../src/checker.js';
 import { config as baseConfig } from '../src/config.js';
 
@@ -247,4 +247,53 @@ test('忽略规则让时间戳变化不触发内容变更', async () => {
   assert.equal(result.verdict, 'normal');
   assert.equal(result.changed, false, '被忽略的行变化不应算内容变更');
   assert.equal(getPage(db, page.id).baseline_id, baselineId);
+});
+
+test('基线建立后才加忽略规则：不必重建基线即不再报变更', async () => {
+  const page = createPage(db, site.id, { name: '点击计数页', url: 'https://www.example.com/views' });
+
+  // 先在没有规则时建基线：那一行会被存进基线快照
+  reply = () => ok(`${LONG}\n点击：1019次 时间：2025-07-08 22:54`);
+  await run(page);
+  const baselineId = getPage(db, page.id).baseline_id;
+  assert.ok(baselineId > 0);
+
+  // 事后再补规则——这正是原来必须手动“设为新基线”的场景
+  updatePage(db, page.id, {
+    ...getPage(db, page.id),
+    ignorePatterns: ['点击\\s*[：:]\\s*[\\d, ]+\\s*次']
+  });
+
+  reply = () => ok(`${LONG}\n点击：1025次 时间：2025-07-08 22:54`);
+  const result = await run(getPage(db, page.id));
+
+  assert.equal(result.verdict, 'normal');
+  assert.equal(result.contentChanged, false, '旧基线应套用当前规则后再比对');
+  assert.equal(result.changed, false);
+  assert.equal(getPage(db, page.id).baseline_id, baselineId, '基线不能被自动改写');
+});
+
+test('旧基线套用规则后，真实内容变化仍能检出', async () => {
+  const row = db.prepare("SELECT * FROM pages WHERE name = '点击计数页'").get();
+
+  reply = () => ok(`${LONG}\n点击：1030次 时间：2025-07-08 22:54\n新增公告：11 月 8 日发布会`);
+  const result = await run(getPage(db, row.id));
+
+  assert.equal(result.verdict, 'normal');
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.diff, { addedCount: 1, removedCount: 0 });
+});
+
+test('基线字数也按过滤后计算，新增规则不会误判正文骤降', async () => {
+  const dynamicBlock = '动态区块'.repeat(200); // 单行 800 字，占基线正文的绝大部分
+  const page = createPage(db, site.id, { name: '动态区块页', url: 'https://www.example.com/big' });
+
+  reply = () => ok(`${LONG}\n${dynamicBlock}`);
+  await run(page);
+
+  updatePage(db, page.id, { ...getPage(db, page.id), ignorePatterns: ['^动态区块'] });
+
+  const result = await run(getPage(db, page.id));
+  assert.equal(result.verdict, 'normal', '基线字数未按过滤后计算时会误报“正文骤降”');
+  assert.equal(result.contentChanged, false);
 });
