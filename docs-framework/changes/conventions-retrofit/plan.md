@@ -2,8 +2,8 @@
 
 ## 1. 根级文件
 - 新增 `VERSION`（`v0.8.7`）、`LICENSE`（MIT，2026 by Mr lin）、`NOTICE`、`.env.example`。
-- 新增 `.trae/rules/name_rules.md`（约定原文）与 `.trae/rules/project_rules.md`（本项目规则，指向现有 `agent.md` 内容）。
-- 保留根目录 `agent.md`（TRAE 当前规则入口），不删除。
+- 新增 `.trae/rules/name_rules.md`（约定原文）与 `.trae/rules/project_rules.md`（本项目规则，内容取自原根目录 `agent.md`）。
+- 删除根目录重复的 `agent.md`（与 `.trae/rules/project_rules.md` 内容完全一致，经确认后移除，规则入口统一为 `.trae/rules/`）。
 
 ## 2. License 头
 - 新增 `scripts/license.mjs`：检查 `src/`、`scripts/`、`public/`、`test/` 下 `.js`/`.mjs` 是否含 `SPDX-License-Identifier: MIT`；`--fix` 模式在文件头（shebang 之后）插入两行头。

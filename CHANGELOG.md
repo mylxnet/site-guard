@@ -48,6 +48,7 @@
 - `.gitignore` 增加 `logs/` 与 `.service.pid`，避免运行期产物入库。
 - 版本号统一为 0.8.7：`VERSION` / `package.json` / `package-lock.json`（两处）/ `fnos/siteguard/manifest` / 界面页脚 / `public/app.js`。
 - 未迁移 `/api/v1` 前缀，接口路径保持原样；未改动日志格式；未安装 Git 钩子（按本轮约定范围）。
+- 删除根目录 `agent.md`：与 `.trae/rules/project_rules.md` 内容完全一致，规则入口统一到 `.trae/rules/`。
 
 **验证**
 - `npm run license:check`：`通过：36 个文件均含 SPDX 头。`

@@ -251,7 +251,7 @@ docker run --rm -p 8686:8686 -v $PWD/data:/data -e TZ=Asia/Shanghai site-guard:d
 
 > 当前 `site-guard` 发行版内**未安装 Docker**（见 `PROJECT_STATE.md` 待办）。安装前需你确认，因为会改动 WSL 环境。
 
-### 4.3 推送到阿里云 ACR（agent.md 七.7 要求）
+### 4.3 推送到阿里云 ACR（`.trae/rules/project_rules.md` 七.7 要求）
 
 ```bash
 # 注意：需加 --provenance=false --sbom=false，否则 buildx 会生成阿里云 ACR 不支持的 OCI attestation 清单（报 unknown manifest class）
