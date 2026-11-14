@@ -63,6 +63,11 @@
 **文档**
 - 同步 README、CHANGELOG、DESIGN、PROJECT、PROJECT_STATE、TEST、DEPLOY。
 
+**交付**
+- 提交 `7fa0d67`（规范文件 + 脚本 + 源码头 + 文档）。
+- 已重新出 x86/arm 两个 `.fpk`：`siteguard-0.8.7-x86.fpk`（43.2 MB / 45,330,138 字节）、`siteguard-0.8.7-arm.fpk`（43.3 MB / 45,441,080 字节），内置 Node v22.23.5。
+- 0.8.7 未打 tag、未发 Release、未推 ACR 镜像（本轮未要求；业务与部署方式无变化）。
+
 ### 0.8.6 - 2026-11-14
 
 **背景**：管理密码只保存在本地数据库（`settings.admin_password`，scrypt 哈希），忘记后只能手改数据库；而项目常跑在内网或飞牛 `/app/siteguard` 网关下，邮件里的重置**链接**无法直接打开。因此改为「重置码」方案：邮件只发一串 20 位分组码，用户在面板里手动输入完成重置。

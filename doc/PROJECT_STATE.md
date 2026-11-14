@@ -210,6 +210,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- ./scripts/service.sh start|stop
 ## 8. 发布记录
 
 > 0.8.6 已提交（`756a003`、`349d149`）、已出 x86/arm 两个 `.fpk`、推送 ACR 镜像（`0.8.6` + `latest`，digest `sha256:3f765e1a…`），并已发布 `tag v0.8.6` 与 GitHub Release，容器冒烟通过。
+> 0.8.7 已提交（`7fa0d67`）、已出 x86/arm 两个 `.fpk`（`siteguard-0.8.7-x86.fpk` 45,330,138 字节 / `-arm.fpk` 45,441,080 字节）；**未打 tag、未发 Release、未推 ACR**（本轮未要求）。
 
 | 版本 | tag | 日期 | Release | 附件 |
 | --- | --- | --- | --- | --- |
