@@ -6,12 +6,12 @@
 ![Node](https://img.shields.io/badge/node-22%20LTS-339933?logo=node.js&logoColor=white)
 ![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-f7df1e)
-![Version](https://img.shields.io/badge/version-0.8.5-orange)
+![Version](https://img.shields.io/badge/version-0.8.6-orange)
 ![Deploy](https://img.shields.io/badge/deploy-Docker%20Compose-0db7ed)
 
 [English](#english) | [中文](#中文)
 
-> ⚠️ **当前阶段**：`0.8.0` 起正式面板已接入真实 API——初始化/登录、站点与页面管理、巡检进度与日志、判定详情、差异与基线、事件流、邮件设置与测试邮件全部可用；`0.8.1` 修复了飞牛桌面入口（`/app/siteguard` 无尾斜杠）下 CSS/JS 404 的问题（实机已确认样式正常）；`0.8.2` 修复了飞牛网关改写 `Host` 导致初始化/登录报「跨站请求被拒绝」的问题；`0.8.3` 让忽略规则即时生效——比对前用当前规则重新过滤基线，改规则后无需再点「设为新基线」；`0.8.4` 修复手机端——页签不再塌陷消失，页面表格改为卡片、操作按钮不再跑出屏幕；`0.8.5` 把概览页「需要处理」与「最近事件」由左右并列改为上下全宽，阅读顺序更顺。`.fpk` 已在飞牛 fnOS 实机安装验证通过，Docker 镜像已推送阿里云 ACR。
+> ⚠️ **当前阶段**：`0.8.0` 起正式面板已接入真实 API——初始化/登录、站点与页面管理、巡检进度与日志、判定详情、差异与基线、事件流、邮件设置与测试邮件全部可用；`0.8.1` 修复了飞牛桌面入口（`/app/siteguard` 无尾斜杠）下 CSS/JS 404 的问题（实机已确认样式正常）；`0.8.2` 修复了飞牛网关改写 `Host` 导致初始化/登录报「跨站请求被拒绝」的问题；`0.8.3` 让忽略规则即时生效——比对前用当前规则重新过滤基线，改规则后无需再点「设为新基线」；`0.8.4` 修复手机端——页签不再塌陷消失，页面表格改为卡片、操作按钮不再跑出屏幕；`0.8.5` 把概览页「需要处理」与「最近事件」由左右并列改为上下全宽，阅读顺序更顺；`0.8.6` 在登录页新增「忘记密码」——校验邮箱（须为告警收件人第一条）后，用告警 SMTP 发送 20 位分组重置码，手输即可重置，不依赖登录地址，内网与飞牛 `/app/siteguard` 场景都能用。`.fpk` 已在飞牛 fnOS 实机安装验证通过，Docker 镜像已推送阿里云 ACR。
 > 想在电脑上试：`npm start` 后打开 `http://127.0.0.1:8686`，首次会要求设置管理密码。`prototype/` 保留为设计参考（假数据）。部署请以 [DEPLOY.md](doc/DEPLOY.md) 为目标流程参考。
 
 ---
@@ -84,7 +84,7 @@ npm install
 # 启动：默认 http://127.0.0.1:8686，数据写到 ./data
 npm start
 npm run dev      # 改代码自动重启
-npm test         # 115 条用例（node --test），当前全绿
+npm test         # 124 条用例（node --test），当前全绿
 
 # 常用环境变量
 PORT=9000 DATA_DIR=./data TZ=Asia/Shanghai npm start
@@ -98,8 +98,8 @@ node scripts/build-fnos.mjs            # 出 dist/fnos/siteguard-<版本>-x86.fp
 node scripts/build-fnos.mjs --arch x64 # 只出一个架构
 
 # Docker 镜像（备用路径，已可构建）
-docker build -f deploy/Dockerfile -t site-guard:0.8.5 .
-docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.8.5
+docker build -f deploy/Dockerfile -t site-guard:0.8.6 .
+docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.8.6
 ```
 
 ### 🛠️ 技术栈
@@ -146,7 +146,7 @@ site-guard/
 └── tools/                 # 运维小工具（备份导出等）
 ```
 
-> 当前 `public/` 已由设计原型演进为正式面板（四页签 + 登录/初始化 + 弹窗），`prototype/` 仅作设计参考；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 115 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、接口与网关/Socket。
+> 当前 `public/` 已由设计原型演进为正式面板（四页签 + 登录/初始化 + 弹窗），`prototype/` 仅作设计参考；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 124 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、忘记密码（重置码）、接口与网关/Socket。
 
 ### 🖱️ 常用操作
 
@@ -190,7 +190,7 @@ MIT License。
 
 **Site Guard** is a self-hosted website monitoring tool for your NAS. Instead of trusting HTTP 200, it fetches each key page and decides whether the **content** still looks like a healthy page — so a `502 Bad Gateway` served with status 200, a blank page, a maintenance page or a redirect to another domain is reported as an incident. It keeps a baseline of each page, reports content changes with a line diff, and sends **one digest email per run** to your inbox.
 
-Current stage: `0.8.5` ships the real web UI (setup/login, sites and pages, live run progress and logs, verdict details, diffs and baselines, event feed, mail settings) wired to the API; 0.8.4 fixed the mobile layout, and 0.8.5 stacks the overview's "needs attention" and "recent events" cards vertically.
+Current stage: `0.8.6` ships the real web UI (setup/login, sites and pages, live run progress and logs, verdict details, diffs and baselines, event feed, mail settings) wired to the API; 0.8.5 stacked the overview's "needs attention" and "recent events" cards vertically, and 0.8.6 adds "Forgot password" — after verifying the address matches the first alert recipient, it mails a 20-character grouped reset code that you type into the panel (no link, so it works behind a LAN or the fnOS `/app/siteguard` gateway).
 
 ### Tech Stack
 
@@ -216,4 +216,4 @@ MIT.
 
 ---
 
-<sub>by Mr lin · v0.8.5</sub>
+<sub>by Mr lin · v0.8.6</sub>

@@ -23,11 +23,30 @@ import {
   countEvents,
   pageStats,
   countPages,
-  lastRunAt
+  lastRunAt,
+  createResetToken,
+  getResetToken,
+  countResetTokensSince,
+  consumeResetToken,
+  deleteResetTokensForEmail,
+  purgeResetTokens
 } from './db.js';
 import { diffLines } from './diff.js';
-import { hashPassword, verifyPassword, createSession, sessionValid, destroySession, createLoginLimiter, purgeSessions, parseCookies } from './auth.js';
-import { validateSite, validatePage, validatePassword, validateMailSettings, requireId, isEmailAddress, ValidationError } from './validate.js';
+import {
+  hashPassword,
+  verifyPassword,
+  createSession,
+  sessionValid,
+  destroySession,
+  createLoginLimiter,
+  purgeSessions,
+  parseCookies,
+  createResetCode,
+  normalizeResetCode,
+  hashResetCode,
+  RESET_CODE_TTL_MS
+} from './auth.js';
+import { validateSite, validatePage, validatePassword, validateResetPassword, validateMailSettings, requireId, isEmailAddress, ValidationError } from './validate.js';
 import { readMailSettings, saveMailSettings, publicMailSettings } from './notify.js';
 import { nextRunAt, describeSchedule } from './schedule.js';
 
@@ -127,7 +146,10 @@ const splitRecipients = (value) =>
 
 export function createApi({ db, config, logger, scheduler, batches, checkPage = null, notifier = null }) {
   const limiter = createLoginLimiter({ windowMs: config.loginWindowMs, max: config.loginMaxFailures });
+  const resetSendLimiter = createLoginLimiter({ windowMs: 5 * 60_000, max: 3 });
+  const resetConfirmLimiter = createLoginLimiter({ windowMs: 10 * 60_000, max: 5 });
   purgeSessions(db);
+  purgeResetTokens(db, Date.now());
 
   const sessionToken = (req) => parseCookies(req.headers.cookie ?? '')[COOKIE_NAME];
 
@@ -201,6 +223,86 @@ export function createApi({ db, config, logger, scheduler, batches, checkPage = 
     destroySession(db, sessionToken(req));
     setCookie(res, COOKIE_NAME, '', { maxAge: 0 });
     return { loggedIn: false };
+  };
+
+  /**
+   * 申请重置码：先确认邮箱等于「邮件收件人」的第一个地址，再复用告警 SMTP 发信。
+   * 邮件里只有 20 位重置码，不含链接，内网地址与飞牛应用前缀都不影响使用。
+   */
+  const resetRequest = async ({ req }) => {
+    const ip = clientIp(req);
+    if (resetSendLimiter.blocked(ip)) {
+      throw new HttpError(429, 'RATE_LIMITED', '申请过于频繁，请 5 分钟后再试');
+    }
+
+    const body = await readJson(req, 8 * 1024);
+    const email = String(body.email ?? '').trim().toLowerCase();
+    if (!isEmailAddress(email)) throw new ValidationError({ email: '请填写正确的邮箱地址' });
+    if (!getSetting(db, PASSWORD_KEY)) throw conflict('尚未设置密码，请先完成初始化');
+
+    const settings = readMailSettings(db);
+    const recipients = splitRecipients(settings.to).map((item) => item.toLowerCase());
+    if (!notifier || !settings.enabled || !settings.host || !settings.from || recipients.length === 0) {
+      throw new HttpError(409, 'MAIL_UNAVAILABLE', '未启用邮件通知，或收件人为空');
+    }
+    if (email !== recipients[0]) {
+      resetSendLimiter.fail(ip);
+      logger.warn('auth.reset.email_mismatch', { ip });
+      throw new HttpError(403, 'EMAIL_NOT_ALLOWED', '该邮箱与配置的邮件收件人不一致', {
+        email: '该邮箱与配置的邮件收件人不一致'
+      });
+    }
+
+    // 全局兜底：每小时最多 10 封，避免被反复触发刷爆邮箱。
+    if (countResetTokensSince(db, Date.now() - 60 * 60_000) >= 10) {
+      throw new HttpError(429, 'RATE_LIMITED', '申请过于频繁，请稍后再试');
+    }
+
+    resetSendLimiter.fail(ip);
+    const code = createResetCode();
+    const now = Date.now();
+    const expiresAt = now + RESET_CODE_TTL_MS;
+    createResetToken(db, { tokenHash: hashResetCode(code), email, createdAt: now, expiresAt });
+
+    await notifier.sendPasswordReset({ email, code, expiresMinutes: RESET_CODE_TTL_MS / 60_000 });
+    logger.info('auth.reset.sent', { ip });
+    return { sent: true, email, expiresAt };
+  };
+
+  const resetConfirm = async ({ req }) => {
+    const ip = clientIp(req);
+    if (resetConfirmLimiter.blocked(ip)) {
+      throw new HttpError(429, 'RATE_LIMITED', '尝试次数过多，请 10 分钟后再试');
+    }
+
+    const body = await readJson(req, 8 * 1024);
+    // 密码与重置码一起校验：码对了但密码不合格时，用户只需改密码，不必重新收信。
+    const password = validateResetPassword(body.password);
+    if (!getSetting(db, PASSWORD_KEY)) throw conflict('尚未设置密码，请先完成初始化');
+
+    const fail = () => {
+      resetConfirmLimiter.fail(ip);
+      const left = resetConfirmLimiter.remaining(ip);
+      logger.warn('auth.reset.fail', { ip });
+      return new HttpError(400, 'INVALID_RESET_CODE', '重置码不正确或已过期', {
+        code: `重置码不正确，还可尝试 ${left} 次`
+      });
+    };
+
+    const code = normalizeResetCode(body.code);
+    if (code.length !== 20) throw fail();
+
+    const row = getResetToken(db, hashResetCode(code));
+    const now = Date.now();
+    if (!row || row.used_at || row.expires_at < now) throw fail();
+    if (!consumeResetToken(db, row.token_hash, now)) throw fail();
+
+    setSetting(db, PASSWORD_KEY, hashPassword(password));
+    deleteResetTokensForEmail(db, row.email);
+    db.prepare('DELETE FROM sessions').run();
+    resetConfirmLimiter.reset(ip);
+    logger.info('auth.reset.confirmed', { ip });
+    return { reset: true };
   };
 
   /* ---------------- 站点 ---------------- */
@@ -482,6 +584,8 @@ export function createApi({ db, config, logger, scheduler, batches, checkPage = 
     { method: 'GET', pattern: /^\/api\/state$/, public: true, handler: state },
     { method: 'POST', pattern: /^\/api\/setup$/, public: true, handler: setup },
     { method: 'POST', pattern: /^\/api\/login$/, public: true, handler: login },
+    { method: 'POST', pattern: /^\/api\/auth\/reset\/request$/, public: true, handler: resetRequest },
+    { method: 'POST', pattern: /^\/api\/auth\/reset\/confirm$/, public: true, handler: resetConfirm },
     { method: 'POST', pattern: /^\/api\/logout$/, handler: logout },
     { method: 'GET', pattern: /^\/api\/sites$/, handler: sitesIndex },
     { method: 'POST', pattern: /^\/api\/sites$/, handler: sitesCreate },

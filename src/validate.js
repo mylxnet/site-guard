@@ -255,6 +255,13 @@ export function validatePassword(value) {
   return text;
 }
 
+/** 重置密码只要求不少于 4 位，不做其他校验。 */
+export function validateResetPassword(value) {
+  const text = String(value ?? '');
+  if (text.length < 4) throw new ValidationError({ password: '密码至少 4 位' });
+  return text;
+}
+
 export function requireId(value, field = 'id') {
   const n = Number(value);
   if (!Number.isInteger(n) || n <= 0) throw new ValidationError({ [field]: 'ID 不合法' });

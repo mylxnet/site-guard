@@ -421,6 +421,49 @@ export function createNotifier({
     }
   }
 
+  /** 发送管理密码重置码。邮件里只有码和操作说明，不含任何链接。 */
+  async function sendPasswordReset({ email, code, expiresMinutes = 30 }) {
+    const settings = readMailSettings(db);
+    const formatted = String(code ?? '').replace(/(.{4})(?=.)/g, '$1-');
+    const minutes = Number(expiresMinutes) || 30;
+
+    const message = {
+      from: settings.from,
+      to: email,
+      subject: '[网站哨兵] 管理密码重置码',
+      text: [
+        '你好，',
+        '有人为「网站哨兵」申请重置管理密码，重置码如下：',
+        '',
+        `    ${formatted}`,
+        '',
+        '打开网站哨兵登录页 →「忘记密码？」→ 在重置页面填入重置码并设置新密码。',
+        `${minutes} 分钟内有效，仅可使用一次。不是本人操作请忽略本邮件。`
+      ].join('\n'),
+      html: [
+        '<div style="font:14px/1.7 -apple-system,Segoe UI,Microsoft YaHei,sans-serif;color:#0f172a;max-width:560px">',
+        '<h2 style="margin:0 0 12px;font-size:17px">网站哨兵 · 管理密码重置码</h2>',
+        '<p style="margin:0 0 12px;color:#475569">有人为「网站哨兵」申请重置管理密码，重置码如下：</p>',
+        `<div style="margin:0 0 14px;padding:14px;border:1px dashed #93c5fd;border-radius:8px;background:#eff6ff;`,
+        `text-align:center;font:600 18px/1.4 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;color:#1d4ed8">`,
+        `${escapeHtml(formatted)}</div>`,
+        '<p style="margin:0 0 8px">打开网站哨兵登录页 →「忘记密码？」→ 在重置页面填入重置码并设置新密码。</p>',
+        `<p style="margin:0;color:#64748b;font-size:12.5px">${minutes} 分钟内有效，仅可使用一次。不是本人操作请忽略本邮件。</p>`,
+        '</div>'
+      ].join('')
+    };
+
+    try {
+      const info = await deliver(settings, message);
+      logger.info('mail.reset', { to: email, messageId: info?.messageId ?? null });
+      return { sent: true, messageId: info?.messageId ?? null };
+    } catch (err) {
+      const reason = describeMailError(err, settings);
+      logger.warn('mail.reset.fail', { to: email, reason });
+      throw badRequest(reason);
+    }
+  }
+
   async function sendTest({ to = null } = {}) {
     const settings = readMailSettings(db);
     if (!settings.host) throw badRequest('请先填写 SMTP 服务器', { host: 'SMTP 服务器未填写' });
@@ -465,5 +508,5 @@ export function createNotifier({
     }
   }
 
-  return { notifyBatch, sendTest };
+  return { notifyBatch, sendTest, sendPasswordReset };
 }

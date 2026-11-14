@@ -99,6 +99,22 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_created ON events(id DESC);
 `
+  },
+  {
+    // v2：管理密码重置码。只存 SHA-256，原文只出现在邮件里。
+    version: 2,
+    sql: `
+CREATE TABLE IF NOT EXISTS reset_tokens (
+  token_hash TEXT PRIMARY KEY,
+  email      TEXT    NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at    INTEGER,
+  attempts   INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_reset_tokens_created ON reset_tokens(created_at);
+`
   }
 ];
 
@@ -144,6 +160,41 @@ export function getSettings(db) {
   const out = {};
   for (const row of db.prepare('SELECT key, value FROM settings').all()) out[row.key] = row.value;
   return out;
+}
+
+/* ---------- 密码重置码 ---------- */
+
+export function createResetToken(db, { tokenHash, email, createdAt, expiresAt }) {
+  db.prepare(
+    'INSERT INTO reset_tokens (token_hash, email, created_at, expires_at) VALUES (?, ?, ?, ?)'
+  ).run(tokenHash, email, createdAt, expiresAt);
+}
+
+export function getResetToken(db, tokenHash) {
+  return db.prepare('SELECT * FROM reset_tokens WHERE token_hash = ?').get(tokenHash) ?? null;
+}
+
+/** 全局发信上限用：统计窗口内发出的重置码数量。 */
+export function countResetTokensSince(db, since) {
+  const row = db.prepare('SELECT COUNT(*) AS n FROM reset_tokens WHERE created_at >= ?').get(since);
+  return Number(row?.n ?? 0);
+}
+
+/** 写入 used_at；并发下只有一次能成功，返回 false 表示已被用掉。 */
+export function consumeResetToken(db, tokenHash, at) {
+  const info = db
+    .prepare('UPDATE reset_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL')
+    .run(at, tokenHash);
+  return info.changes > 0;
+}
+
+/** 同一邮箱只保留最新一枚：改密成功后清掉其余，避免旧信仍可用。 */
+export function deleteResetTokensForEmail(db, email) {
+  db.prepare('DELETE FROM reset_tokens WHERE email = ?').run(email);
+}
+
+export function purgeResetTokens(db, now) {
+  db.prepare('DELETE FROM reset_tokens WHERE expires_at < ?').run(now);
 }
 
 /* ---------- 站点 ---------- */

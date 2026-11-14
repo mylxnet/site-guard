@@ -70,10 +70,49 @@ export function createLoginLimiter({ windowMs = 5 * 60_000, max = 8 } = {}) {
       if (!entry || now - entry.first > windowMs) failures.set(ip, { first: now, count: 1 });
       else entry.count += 1;
     },
+    /** 还剩几次机会；用于“还可尝试 N 次”的提示。 */
+    remaining(ip, now = Date.now()) {
+      const entry = failures.get(ip);
+      if (!entry || now - entry.first > windowMs) return max;
+      return Math.max(0, max - entry.count);
+    },
     reset(ip) {
       failures.delete(ip);
     },
   };
+}
+
+/* ---------- 管理密码重置码 ---------- */
+
+export const RESET_CODE_TTL_MS = 30 * 60 * 1000;
+
+// Crockford Base32：去掉容易看错的 I、L、O、U，共 32 个字符，按 256 取模天然均匀。
+const RESET_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const RESET_CODE_LENGTH = 20;
+
+/** 生成 20 位重置码（约 100 bit 熵），邮件里按 5 组 4 位展示。 */
+export function createResetCode() {
+  const bytes = crypto.randomBytes(RESET_CODE_LENGTH);
+  let out = '';
+  for (const byte of bytes) out += RESET_ALPHABET[byte % 32];
+  return out;
+}
+
+/** 去掉分隔符并统一大写；顺手纠正手抄常见的 O→0、I/L→1。 */
+export function normalizeResetCode(value) {
+  return String(value ?? '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1');
+}
+
+export function formatResetCode(value) {
+  return normalizeResetCode(value).replace(/(.{4})(?=.)/g, '$1-');
+}
+
+export function hashResetCode(value) {
+  return sha256(normalizeResetCode(value));
 }
 
 export function parseCookies(header = '') {

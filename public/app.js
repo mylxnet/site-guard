@@ -1,8 +1,8 @@
-/* 网站哨兵 · 面板前端 · v0.8.5
- * 对接 /api/*：初始化/登录、站点与页面 CRUD、真实巡检进度、判定详情、差异与基线、事件流、邮件设置。
+/* 网站哨兵 · 面板前端 · v0.8.6
+ * 对接 /api/*：初始化/登录、忘记密码（邮件重置码）、站点与页面 CRUD、真实巡检进度、判定详情、差异与基线、事件流、邮件设置。
  */
 
-const VERSION = 'v0.8.5';
+const VERSION = 'v0.8.6';
 
 /* 同源 API 基址：直连（/）与飞牛统一网关（/app/<appname>/）都成立。 */
 const API_BASE = (() => {
@@ -126,28 +126,35 @@ function readErrorMessage(err) {
   return err?.message || '操作失败，请稍后重试';
 }
 
-/* ============ 登录 / 初始化 ============ */
+/* ============ 登录 / 初始化 / 忘记密码 ============ */
 
-function showAuth(mode, message = '') {
+let resetTimer = null;
+let resetExpiresAt = 0;
+let resetEmail = '';
+
+function stopResetTimer() {
+  if (resetTimer) clearInterval(resetTimer);
+  resetTimer = null;
+}
+
+function showAuth(view = 'login', message = '') {
   closeModal();
   document.body.classList.add('is-locked');
   $('#authRoot').hidden = false;
   $('#authError').textContent = message;
-  $('#setupForm').hidden = mode !== 'setup';
-  $('#loginForm').hidden = mode !== 'login';
-  $('#authLead').textContent = mode === 'setup'
-    ? '首次使用，请先设置管理密码（至少 8 位）。'
-    : '请输入管理密码进入面板。';
+  $$('.auth-view').forEach((el) => { el.hidden = el.dataset.view !== view; });
+  if (view !== 'reset-code') stopResetTimer();
 
   setTimeout(() => {
-    const form = mode === 'setup' ? $('#setupForm') : $('#loginForm');
-    form.querySelector('input')?.focus();
+    const active = $(`.auth-view[data-view="${view}"]`);
+    active?.querySelector('input')?.focus();
   }, 30);
 }
 
 function hideAuth() {
   $('#authRoot').hidden = true;
   document.body.classList.remove('is-locked');
+  stopResetTimer();
 }
 
 function setAuthError(err, form) {
@@ -255,8 +262,99 @@ async function submitLogin(event) {
   }
 }
 
-async function logout() {
-  try { await api('/logout', { method: 'POST' }); } catch { /* 已经失效也当做退出 */ }
+/* ---------- 忘记密码：邮件重置码 ---------- */
+
+const normalizeResetCode = (value) => String(value ?? '')
+  .toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
+
+const formatResetCode = (value) => normalizeResetCode(value).replace(/(.{4})(?=.)/g, '$1-');
+
+function startResetCountdown(expiresAt) {
+  stopResetTimer();
+  const cd = $('#resetCountdown');
+  if (!cd) return;
+  const tick = () => {
+    const left = Math.max(0, Number(expiresAt) - Date.now());
+    const m = Math.floor(left / 60_000);
+    const s = Math.floor((left % 60_000) / 1000);
+    cd.textContent = left > 0 ? `剩余 ${pad2(m)}:${pad2(s)}` : '已过期，请重新申请';
+    if (left <= 0) {
+      stopResetTimer();
+      const btn = $('#resetCodeForm button[type="submit"]');
+      if (btn) btn.disabled = true;
+    }
+  };
+  tick();
+  resetTimer = setInterval(tick, 1000);
+}
+
+async function submitResetRequest(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  clearFieldErrors(form);
+  $('#authError').textContent = '';
+
+  const email = form.elements.email.value.trim();
+  if (!email) { setFieldError(form, 'email', '请填写邮箱地址'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setFieldError(form, 'email', '邮箱格式不对');
+    return;
+  }
+
+  const btn = form.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.textContent = '发送中…';
+  try {
+    const data = await api('/auth/reset/request', { method: 'POST', body: { email } });
+    resetEmail = email;
+    resetExpiresAt = Number(data?.expiresAt) || Date.now() + 30 * 60_000;
+    $('#sentEmail').textContent = email;
+    form.reset();
+    showAuth('reset-sent');
+  } catch (err) {
+    setAuthError(err, form);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '验证并发送重置码';
+  }
+}
+
+async function submitResetCode(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  clearFieldErrors(form);
+  $('#authError').textContent = '';
+
+  const code = formatResetCode(form.elements.code.value);
+  form.elements.code.value = code;
+  const password = form.elements.password.value;
+  const confirm = form.elements.confirm.value;
+
+  let ok = true;
+  if (!code) { setFieldError(form, 'code', '请填写邮件里的重置码'); ok = false; }
+  else if (normalizeResetCode(code).length !== 20) { setFieldError(form, 'code', '重置码是 20 位'); ok = false; }
+  if (password.length < 4) { setFieldError(form, 'password', '密码至少 4 位'); ok = false; }
+  if (!confirm) { setFieldError(form, 'confirm', '请再输入一次密码'); ok = false; }
+  else if (confirm !== password) { setFieldError(form, 'confirm', '两次输入不一致'); ok = false; }
+  if (!ok) return;
+
+  const btn = form.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  try {
+    await api('/auth/reset/confirm', { method: 'POST', body: { code, password } });
+    form.reset();
+    stopResetTimer();
+    showAuth('reset-done');
+  } catch (err) {
+    setAuthError(err, form);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存新密码';
+  }
+}
+
+async function logout() {  try { await api('/logout', { method: 'POST' }); } catch { /* 已经失效也当做退出 */ }
   state.sites = [];
   state.events = [];
   state.overview = null;
@@ -1451,6 +1549,23 @@ function init() {
 
   $('#setupForm').addEventListener('submit', submitSetup);
   $('#loginForm').addEventListener('submit', submitLogin);
+
+  $('#forgotBtn').addEventListener('click', () => showAuth('reset-request'));
+  $('#resetBackBtn').addEventListener('click', () => showAuth('login'));
+  $('#resetRequestForm').addEventListener('submit', submitResetRequest);
+  $('#resendBtn').addEventListener('click', () => {
+    $('#resetRequestForm').elements.email.value = resetEmail;
+    showAuth('reset-request');
+  });
+  $('#goResetBtn').addEventListener('click', () => {
+    showAuth('reset-code');
+    startResetCountdown(resetExpiresAt || Date.now() + 30 * 60_000);
+  });
+  $('#resetCodeForm').addEventListener('submit', submitResetCode);
+  $('#resetCodeInput').addEventListener('input', (event) => {
+    event.target.value = formatResetCode(event.target.value);
+  });
+  $('#doneLoginBtn').addEventListener('click', () => showAuth('login'));
   $('#smtpForm').addEventListener('submit', submitSettings);
   $('#testMailBtn').addEventListener('click', () => void testMail());
 

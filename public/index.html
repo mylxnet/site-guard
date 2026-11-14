@@ -11,46 +11,174 @@
 <!-- ============ 登录 / 初始化 ============ -->
 <div class="auth-root" id="authRoot">
   <div class="auth-card">
-    <div class="auth-brand">
-      <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z"/>
-          <path d="M9 12l2 2 4-4"/>
-        </svg>
+    <section class="auth-view" data-view="login" hidden>
+      <div class="auth-brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <h1>网站哨兵</h1>
+          <p>关键页面巡检 · 内容异常与变更告警</p>
+        </div>
       </div>
-      <div>
-        <h1>网站哨兵</h1>
-        <p>关键页面巡检 · 内容异常与变更告警</p>
+
+      <p class="auth-lead">请输入管理密码继续。</p>
+
+      <form class="auth-form" id="loginForm" novalidate>
+        <label class="field">
+          <span>管理密码</span>
+          <input type="password" name="password" autocomplete="current-password" placeholder="输入管理密码">
+          <em class="err" data-err="password"></em>
+        </label>
+        <div class="auth-inline">
+          <button type="button" class="link-btn" id="forgotBtn">忘记密码？</button>
+        </div>
+        <button type="submit" class="btn primary">登录</button>
+      </form>
+    </section>
+
+    <section class="auth-view" data-view="setup" hidden>
+      <div class="auth-brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <h1>网站哨兵</h1>
+          <p>关键页面巡检 · 内容异常与变更告警</p>
+        </div>
       </div>
-    </div>
 
-    <p class="auth-lead" id="authLead">正在检查运行状态…</p>
+      <p class="auth-lead">首次使用，请先设置管理密码（至少 8 位）。</p>
 
-    <form class="auth-form" id="setupForm" hidden novalidate>
-      <label class="field">
-        <span>设置管理密码（至少 8 位）</span>
-        <input type="password" name="password" autocomplete="new-password" placeholder="至少 8 位">
-        <em class="err" data-err="password"></em>
-      </label>
-      <label class="field">
-        <span>再次输入密码</span>
-        <input type="password" name="confirm" autocomplete="new-password" placeholder="再输一次">
-        <em class="err" data-err="confirm"></em>
-      </label>
-      <button type="submit" class="btn primary">完成初始化</button>
-    </form>
+      <form class="auth-form" id="setupForm" novalidate>
+        <label class="field">
+          <span>设置管理密码（至少 8 位）</span>
+          <input type="password" name="password" autocomplete="new-password" placeholder="至少 8 位">
+          <em class="err" data-err="password"></em>
+        </label>
+        <label class="field">
+          <span>再次输入密码</span>
+          <input type="password" name="confirm" autocomplete="new-password" placeholder="再输一次">
+          <em class="err" data-err="confirm"></em>
+        </label>
+        <button type="submit" class="btn primary">完成初始化</button>
+      </form>
+    </section>
 
-    <form class="auth-form" id="loginForm" hidden novalidate>
-      <label class="field">
-        <span>管理密码</span>
-        <input type="password" name="password" autocomplete="current-password" placeholder="输入管理密码">
-        <em class="err" data-err="password"></em>
-      </label>
-      <button type="submit" class="btn primary">登录</button>
-    </form>
+    <section class="auth-view" data-view="reset-request" hidden>
+      <div class="auth-brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="5" width="18" height="14" rx="2"/>
+            <path d="M3 7l9 6 9-6"/>
+          </svg>
+        </div>
+        <div>
+          <h1>验证邮箱</h1>
+          <p>第一步 · 确认你有权接收重置邮件</p>
+        </div>
+      </div>
+
+      <p class="auth-step">请输入异常时发邮件的第一个地址。</p>
+
+      <form class="auth-form" id="resetRequestForm" novalidate>
+        <label class="field">
+          <span>邮箱地址</span>
+          <input type="email" name="email" autocomplete="email" placeholder="name@example.com" spellcheck="false">
+          <em class="err" data-err="email"></em>
+        </label>
+        <button type="submit" class="btn primary">验证并发送重置码</button>
+      </form>
+
+      <p class="auth-back">
+        <button type="button" class="link-btn" id="resetBackBtn">返回登录</button>
+      </p>
+    </section>
+
+    <section class="auth-view" data-view="reset-sent" hidden>
+      <div class="auth-brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="5" width="18" height="14" rx="2"/>
+            <path d="M3 7l9 6 9-6"/>
+          </svg>
+        </div>
+        <div>
+          <h1>重置码已发送</h1>
+          <p>请到 <b id="sentEmail">—</b> 查收</p>
+        </div>
+      </div>
+
+      <p class="auth-lead">重置码 30 分钟内有效。</p>
+
+      <div class="auth-actions">
+        <button type="button" class="btn primary" id="goResetBtn">我已拿到重置码</button>
+        <button type="button" class="btn" id="resendBtn">重新发送</button>
+      </div>
+    </section>
+
+    <section class="auth-view" data-view="reset-code" hidden>
+      <div class="auth-brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="10" width="16" height="10" rx="2"/>
+            <path d="M8 10V7a4 4 0 018 0v3"/>
+          </svg>
+        </div>
+        <div>
+          <h1>设置新密码</h1>
+          <p>第二步 · 输入重置码</p>
+        </div>
+      </div>
+
+      <form class="auth-form" id="resetCodeForm" novalidate>
+        <label class="field code">
+          <span class="field-head"><span>重置码</span><span class="countdown" id="resetCountdown">剩余 30:00</span></span>
+          <input type="text" name="code" id="resetCodeInput" class="token-input" maxlength="24"
+                 autocomplete="one-time-code" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX">
+          <em class="err" data-err="code"></em>
+        </label>
+        <label class="field">
+          <span>新密码</span>
+          <input type="password" name="password" autocomplete="new-password" placeholder="至少 4 位">
+          <em class="err" data-err="password"></em>
+        </label>
+        <label class="field">
+          <span>确认新密码</span>
+          <input type="password" name="confirm" autocomplete="new-password" placeholder="再输一次">
+          <em class="err" data-err="confirm"></em>
+        </label>
+        <button type="submit" class="btn primary">保存新密码</button>
+      </form>
+    </section>
+
+    <section class="auth-view" data-view="reset-done" hidden>
+      <div class="auth-brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <h1>密码已重置</h1>
+          <p>所有已登录设备已被退出，请使用新密码重新登录。</p>
+        </div>
+      </div>
+
+      <div class="auth-actions">
+        <button type="button" class="btn primary" id="doneLoginBtn">去登录</button>
+      </div>
+    </section>
 
     <p class="auth-error" id="authError" role="alert"></p>
-    <p class="auth-foot"><span id="authVersion">v0.8.2</span> ｜ by Mr lin</p>
+    <p class="auth-foot"><span id="authVersion">v0.8.6</span> ｜ by Mr lin</p>
   </div>
 </div>
 
