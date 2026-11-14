@@ -26,7 +26,7 @@
 | **忘记密码（0.8.6）** | ✅ 完成：登录页「忘记密码？」4 步流程；邮箱须等于「告警收件人」第一条，通过后用告警 SMTP 发 20 位分组重置码（无链接），手输重置；重置密码仅要求不少于 4 位；30 分钟有效、单次使用、改密清会话；新增 9 条用例，124 条全绿 |
 | **工程规范落地（0.8.7）** | ✅ 完成：`VERSION` / `LICENSE` / `NOTICE` / `.env.example`、`.trae/rules/`、`docs-framework/`（SDD 流程 + 模板 + `specs/api/api.yaml` 契约 + 本轮 changes）、`scripts/license.mjs` / `sdd` / `service.sh`、`license:*` 与 `preflight`；36 个源文件补 SPDX 头；preflight 与服务启停实测通过 |
 | Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（`0.8.7` / `latest`，digest `sha256:575ad835…`），仓库已设为公开，可匿名拉取 |
-| **发布（GitHub tag + Release）** | ✅ 最新 `tag v0.8.6` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8）；0.8.7 尚未发布 |
+| **发布（GitHub tag + Release）** | ✅ 最新 `tag v0.8.7` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8） |
 
 > 说明：0.8.0 起整个闭环都能在界面上完成——“初始化 → 建站点/页面 → 巡检（真实进度与日志）→ 看判定与差异 → 确认基线 → 收到汇总邮件”，抓取与 SMTP 都是真实链路；0.7.0 起可打包成飞牛原生安装包（不依赖 Docker），0.7.2 已在飞牛 fnOS 实机安装并打开。
 
@@ -210,7 +210,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- ./scripts/service.sh start|stop
 ## 8. 发布记录
 
 > 0.8.6 已提交（`756a003`、`349d149`）、已出 x86/arm 两个 `.fpk`、推送 ACR 镜像（`0.8.6` + `latest`，digest `sha256:3f765e1a…`），并已发布 `tag v0.8.6` 与 GitHub Release，容器冒烟通过。
-> 0.8.7 已提交（`7fa0d67`、`5fe8d38`、`fa864cd`）、已出 x86/arm 两个 `.fpk`（`siteguard-0.8.7-x86.fpk` 45,330,138 字节 / `-arm.fpk` 45,441,080 字节），已推 ACR 镜像（`0.8.7` + `latest`，digest `sha256:575ad835…`），容器冒烟通过；**未打 tag、未发 Release**（本轮未要求）。
+> 0.8.7 已提交（`7fa0d67`、`5fe8d38`、`fa864cd`、`65cfbe3`）、已出 x86/arm 两个 `.fpk`（`siteguard-0.8.7-x86.fpk` 45,330,138 字节 / `-arm.fpk` 45,441,080 字节）、已推 ACR 镜像（`0.8.7` + `latest`，digest `sha256:575ad835…`）且容器冒烟通过，并已发布 `tag v0.8.7` 与 GitHub Release（附两个 `.fpk`）。
 
 | 版本 | tag | 日期 | Release | 附件 |
 | --- | --- | --- | --- | --- |
