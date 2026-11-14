@@ -63,6 +63,7 @@
 
 **文档**
 - 同步 README、CHANGELOG、DESIGN、PROJECT、PROJECT_STATE、TEST、DEPLOY。
+- 本轮 SDD 变更已归档：`docs-framework/specs/functional/conventions-retrofit_20261114.md`（spec）与 `conventions-retrofit_20261114_plan.md`（plan）。
 
 **交付**
 - 提交 `7fa0d67`（规范文件 + 脚本 + 源码头 + 文档）。
