@@ -65,7 +65,7 @@
 - 提交 `756a003`（功能 + 测试 + 文档）。
 - 已出 x86/arm 两个 `.fpk`：`siteguard-0.8.6-x86.fpk`（43.2 MB / 45,329,568 字节）、`siteguard-0.8.6-arm.fpk`（43.3 MB / 45,440,788 字节），内置 Node v22.23.5。
 - 已构建并推送 ACR 镜像 `0.8.6` + `latest`，digest `sha256:3f765e1a…`；容器冒烟返回 `{"ok":true,"version":"0.8.6","db":"ok"}`。
-- 尚未打 `tag v0.8.6` 与 GitHub Release。
+- 已发布 `tag v0.8.6` 与 GitHub Release（附 x86/arm 两个 `.fpk`）：https://github.com/mylxnet/site-guard/releases/tag/v0.8.6
 
 ### 0.8.5 - 2026-10-26
 

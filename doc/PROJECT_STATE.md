@@ -198,10 +198,11 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 ## 8. 发布记录
 
-> 0.8.6 已提交（`756a003`）、已出 x86/arm 两个 `.fpk` 并推送 ACR 镜像（`0.8.6` + `latest`，digest `sha256:3f765e1a…`），容器冒烟通过；尚未打 `tag v0.8.6` 与 GitHub Release。
+> 0.8.6 已提交（`756a003`、`349d149`）、已出 x86/arm 两个 `.fpk`、推送 ACR 镜像（`0.8.6` + `latest`，digest `sha256:3f765e1a…`），并已发布 `tag v0.8.6` 与 GitHub Release，容器冒烟通过。
 
 | 版本 | tag | 日期 | Release | 附件 |
 | --- | --- | --- | --- | --- |
+| 0.8.6 | `v0.8.6`（`349d149`） | 2026-11-14 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.6 | `siteguard-0.8.6-x86.fpk`（43.2MB / 45,329,568 字节）、`siteguard-0.8.6-arm.fpk`（43.3MB / 45,440,788 字节）；镜像 `0.8.6` + `latest`，digest `sha256:3f765e1a…` |
 | 0.8.5 | `v0.8.5`（`f7c7e11`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.5 | `siteguard-0.8.5-x86.fpk`（43.2MB / 45,297,387 字节）、`siteguard-0.8.5-arm.fpk`（43.3MB / 45,418,806 字节）；镜像 `0.8.5` + `latest`，digest `sha256:065a50e9…` |
 | 0.8.4 | `v0.8.4`（`f3d8612`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.4 | `siteguard-0.8.4-x86.fpk`（43.2MB / 45,293,566 字节）、`siteguard-0.8.4-arm.fpk`（43.3MB / 45,416,964 字节）；镜像 `0.8.4` + `latest`，digest `sha256:eb111d66…` |
 | 0.8.3 | `v0.8.3`（`f98727a`） | 2026-10-26 | https://github.com/mylxnet/site-guard/releases/tag/v0.8.3 | `siteguard-0.8.3-x86.fpk`（43.2MB / 45,295,004 字节）、`siteguard-0.8.3-arm.fpk`（43.3MB / 45,417,854 字节）；镜像 `0.8.3` + `latest`，digest `sha256:c60c5ff1…` |
