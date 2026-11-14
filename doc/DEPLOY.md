@@ -17,7 +17,7 @@
 | 0.8.5 | 概览页布局调整 | 「需要处理」与「最近事件」由左右并列改为上下全宽；1280×800 实测两卡均宽 1132px、间距 12px，小屏无横向滚动；纯前端样式改动，`npm test` 115 条仍全绿 |
 | 0.8.6 | **忘记密码（重置码）** | 登录页「忘记密码？」→ 校验邮箱（须为告警收件人第一条）→ 告警 SMTP 发 20 位分组重置码（邮件无链接，内网/飞牛网关均可用）→ 手输重置；30 分钟有效、单次使用、改密清会话；`npm test` 124 条全绿 |
 | 0.8.7（当前） | 工程规范与脚本 | 版本单一来源 `VERSION`、MIT `LICENSE` / `NOTICE` / `.env.example`、全部源码 SPDX 头、`docs-framework/` SDD 工作区与 OpenAPI 契约、`npm run preflight`、`scripts/service.sh`；业务与部署方式无变化，`npm run preflight` 124 条全绿 |
-| Docker 镜像（0.7.2 起） | 备用路径，已可用 | `docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile ...`；镜像已推阿里云 ACR（`0.8.6` / `latest`，digest `sha256:3f765e1a…`，公开可匿名拉取）；第 2 节起是这条路径 |
+| Docker 镜像（0.7.2 起） | 备用路径，已可用 | `docker buildx build --provenance=false --sbom=false -f deploy/Dockerfile ...`；镜像已推阿里云 ACR（`0.8.7` / `latest`，digest `sha256:575ad835…`，公开可匿名拉取）；第 2 节起是这条路径 |
 | 1.0.0 | 正式版 | 实机复核新面板 + 升级/卸载补测 |
 
 > **本文档的推荐路径是第 1 节（原生应用）**；第 2 节起的 Docker 流程是备用方案，镜像已产出、可直接执行。
