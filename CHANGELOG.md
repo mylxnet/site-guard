@@ -61,6 +61,12 @@
 **文档**
 - 版本号统一 0.8.6（`package.json` / `package-lock.json` 两处 / `fnos/siteguard/manifest` / 界面页脚）；同步 README、PROJECT、PROJECT_STATE、DESIGN、DEPLOY、TEST、DEBUG_FPK。
 
+**交付**
+- 提交 `756a003`（功能 + 测试 + 文档）。
+- 已出 x86/arm 两个 `.fpk`：`siteguard-0.8.6-x86.fpk`（43.2 MB / 45,329,568 字节）、`siteguard-0.8.6-arm.fpk`（43.3 MB / 45,440,788 字节），内置 Node v22.23.5。
+- 已构建并推送 ACR 镜像 `0.8.6` + `latest`，digest `sha256:3f765e1a…`；容器冒烟返回 `{"ok":true,"version":"0.8.6","db":"ok"}`。
+- 尚未打 `tag v0.8.6` 与 GitHub Release。
+
 ### 0.8.5 - 2026-10-26
 
 **背景**：桌面版概览页把「需要处理」和「最近事件」放在左右两栏，两栏互相挤压，事件列表偏窄，阅读顺序也别扭。
