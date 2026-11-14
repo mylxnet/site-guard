@@ -1,6 +1,6 @@
 {
   "name": "site-guard",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "网站哨兵 - 网站可用性/内容防篡改 + 目录文件完整性监测，单容器自托管",
   "type": "module",
   "private": true,
@@ -11,7 +11,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "license:check": "node scripts/license.mjs",
+    "license:fix": "node scripts/license.mjs --fix",
+    "preflight": "npm run license:check && npm test"
   },
   "dependencies": {
     "nodemailer": "^7.0.9"

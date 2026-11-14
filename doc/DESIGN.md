@@ -1,6 +1,6 @@
 # 网站哨兵 Site Guard · 设计方案
 
-> 版本：0.8.6 ｜ 日期：2026-11-14 ｜ 作者：by Mr lin ｜ 状态：MVP 设计已定稿；后端、检测引擎、邮件告警、正式前端面板均已实现，`.fpk` 已实机验证（0.8.1 样式正常，0.8.2 同源修复已实机验证，0.8.3 修复忽略规则与基线不对称，0.8.4 修复手机端页签塌陷与表格溢出，0.8.5 概览页两卡改上下全宽，0.8.6 新增忘记密码/重置码）
+> 版本：0.8.7 ｜ 日期：2026-11-14 ｜ 作者：by Mr lin ｜ 状态：MVP 设计已定稿；后端、检测引擎、邮件告警、正式前端面板均已实现，`.fpk` 已实机验证（0.8.1 样式正常，0.8.2 同源修复已实机验证，0.8.3 修复忽略规则与基线不对称，0.8.4 修复手机端页签塌陷与表格溢出，0.8.5 概览页两卡改上下全宽，0.8.6 新增忘记密码/重置码，0.8.7 落地工程规范与 SDD 工作区）
 
 ---
 
@@ -340,6 +340,7 @@
 | 0.8.4 | 手机端可用性：页签不塌陷 + 页面表格卡片化 | `public/style.css`（已交付，390×844 设备模拟与 1280×800 复核通过） |
 | 0.8.5 | 概览页「需要处理」与「最近事件」改上下全宽 | `public/style.css`（已交付，1280×800 与 500 宽实测通过） |
 | 0.8.6 | 忘记密码：邮箱校验 + SMTP 发 20 位分组重置码 + 手输重置（不依赖登录地址） | `src/db.js` / `src/auth.js` / `src/notify.js` / `src/routes.js` / `public/*` + `test/reset.test.js`（已交付，124 条用例全绿，浏览器实测通过） |
+| 0.8.7 | 工程规范落地：版本单一来源、许可证与 SPDX 版权头、SDD 规格工作区与 OpenAPI 契约、license/preflight 脚本、本地服务管理 | `VERSION` / `LICENSE` / `NOTICE` / `.env.example` / `docs-framework/` / `scripts/*`（已交付，preflight 与 service.sh 实测通过） |
 | 1.0.0 | 实机复核新面板、升级/卸载补测、Release | 正式版 |
 
 ---
@@ -391,13 +392,18 @@
 ```
 site-guard/
 ├── README.md / CHANGELOG.md
+├── VERSION       版本单一来源（vX.Y.Z）
+├── LICENSE / NOTICE / .env.example
+├── .trae/rules/  项目约定与团队命名规范
+├── docs-framework/  SDD 工作区：templates / specs/api（OpenAPI）/ specs/functional / changes
 ├── doc/          设计方案、开发文档、状态、部署、测试、截图
 ├── prototype/    纯静态界面原型（设计确认用，不参与构建）
 ├── src/          后端：server / db / auth / fetch / extract / verdict / diff / schedule / checker / notify
 ├── public/       正式前端：index.html / style.css / app.js（四页签面板，直连 API）
+├── fnos/         飞牛原生应用包目录（manifest / cmd / config / ui）
 ├── deploy/       Dockerfile 与 compose
 ├── test/         node:test 用例
-├── scripts/      构建、打包、推送镜像
+├── scripts/      构建打包、图标、SPDX 头检查、sdd、service.sh
 └── tools/        运维小工具
 ```
 
@@ -463,7 +469,7 @@ site-guard/
 
 | 项 | 约定 |
 | --- | --- |
-| 版本号 | `主.次.修订`，每轮改动递增；`package.json`、界面、文档三处同号 |
+| 版本号 | `主.次.修订`，每轮改动递增；`VERSION` 为单一来源，`package.json`、`fnos/siteguard/manifest`、界面、文档同号 |
 | 镜像 tag | 语义化版本（`1.0.0`）+ 可选 `latest`；不使用日期 tag |
 | 构建 | 在 WSL `site-guard` 发行版内 `docker build`，国内源装依赖 |
 | 推送 | 推阿里云 ACR（需账号），凭据不进仓库 |
@@ -478,6 +484,10 @@ site-guard/
 
 | 版本 | 主要内容 |
 | --- | --- |
+| 0.8.7 | 工程规范：版本单一来源、LICENSE/NOTICE/.env.example、SPDX 头、SDD 工作区与 OpenAPI 契约、license/preflight、service.sh |
+| 0.8.6 | 忘记密码：邮箱校验 + SMTP 发 20 位分组重置码 + 手输重置 |
+| 0.8.0–0.8.5 | 正式面板落地；网关裸前缀与 Host 改写修复；忽略规则即时生效；手机端适配；概览页布局调整 |
+| 0.7.0–0.7.3 | 飞牛原生应用（.fpk）：包目录、生命周期脚本、内置 Node 运行时、实机安装闭环 |
 | 0.6.0 | 邮件告警：批次汇总、冷却、恢复补发、重试、事件流与设置接口 |
 | 0.5.0 | 检测引擎：抓取、正文归一化、四档判定、基线与差异、页面级接口 |
 | 0.4.0 | 后端骨架：HTTP 服务、鉴权、站点/页面 API、调度器与批次 |

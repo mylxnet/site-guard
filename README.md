@@ -6,12 +6,12 @@
 ![Node](https://img.shields.io/badge/node-22%20LTS-339933?logo=node.js&logoColor=white)
 ![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-f7df1e)
-![Version](https://img.shields.io/badge/version-0.8.6-orange)
+![Version](https://img.shields.io/badge/version-0.8.7-orange)
 ![Deploy](https://img.shields.io/badge/deploy-Docker%20Compose-0db7ed)
 
 [English](#english) | [中文](#中文)
 
-> ⚠️ **当前阶段**：`0.8.0` 起正式面板已接入真实 API——初始化/登录、站点与页面管理、巡检进度与日志、判定详情、差异与基线、事件流、邮件设置与测试邮件全部可用；`0.8.1` 修复了飞牛桌面入口（`/app/siteguard` 无尾斜杠）下 CSS/JS 404 的问题（实机已确认样式正常）；`0.8.2` 修复了飞牛网关改写 `Host` 导致初始化/登录报「跨站请求被拒绝」的问题；`0.8.3` 让忽略规则即时生效——比对前用当前规则重新过滤基线，改规则后无需再点「设为新基线」；`0.8.4` 修复手机端——页签不再塌陷消失，页面表格改为卡片、操作按钮不再跑出屏幕；`0.8.5` 把概览页「需要处理」与「最近事件」由左右并列改为上下全宽，阅读顺序更顺；`0.8.6` 在登录页新增「忘记密码」——校验邮箱（须为告警收件人第一条）后，用告警 SMTP 发送 20 位分组重置码，手输即可重置，不依赖登录地址，内网与飞牛 `/app/siteguard` 场景都能用。`.fpk` 已在飞牛 fnOS 实机安装验证通过，Docker 镜像已推送阿里云 ACR。
+> ⚠️ **当前阶段**：`0.8.0` 起正式面板已接入真实 API——初始化/登录、站点与页面管理、巡检进度与日志、判定详情、差异与基线、事件流、邮件设置与测试邮件全部可用；`0.8.1` 修复了飞牛桌面入口（`/app/siteguard` 无尾斜杠）下 CSS/JS 404 的问题（实机已确认样式正常）；`0.8.2` 修复了飞牛网关改写 `Host` 导致初始化/登录报「跨站请求被拒绝」的问题；`0.8.3` 让忽略规则即时生效——比对前用当前规则重新过滤基线，改规则后无需再点「设为新基线」；`0.8.4` 修复手机端——页签不再塌陷消失，页面表格改为卡片、操作按钮不再跑出屏幕；`0.8.5` 把概览页「需要处理」与「最近事件」由左右并列改为上下全宽，阅读顺序更顺；`0.8.6` 在登录页新增「忘记密码」——校验邮箱（须为告警收件人第一条）后，用告警 SMTP 发送 20 位分组重置码，手输即可重置，不依赖登录地址，内网与飞牛 `/app/siteguard` 场景都能用；`0.8.7` 落地工程规范——补齐 `VERSION` / `LICENSE` / `NOTICE` / `.env.example`，全部源码加 SPDX 版权头，引入 `docs-framework/`（规格先行，No Spec, No Code）与 `docs-framework/specs/api/api.yaml` 接口契约，新增 `npm run license:check` / `license:fix` / `preflight` 与 `scripts/service.sh` 本地服务管理。`.fpk` 已在飞牛 fnOS 实机安装验证通过，Docker 镜像已推送阿里云 ACR。
 > 想在电脑上试：`npm start` 后打开 `http://127.0.0.1:8686`，首次会要求设置管理密码。`prototype/` 保留为设计参考（假数据）。部署请以 [DEPLOY.md](doc/DEPLOY.md) 为目标流程参考。
 
 ---
@@ -85,8 +85,12 @@ npm install
 npm start
 npm run dev      # 改代码自动重启
 npm test         # 124 条用例（node --test），当前全绿
+npm run preflight # 发布前自检：SPDX 头检查 + 全量测试
 
-# 常用环境变量
+# 本地服务管理（WSL / Linux，日志落 logs/）
+./scripts/service.sh start|stop|restart|status|health|logs
+
+# 常用环境变量（完整清单见 .env.example）
 PORT=9000 DATA_DIR=./data TZ=Asia/Shanghai npm start
 ```
 
@@ -98,8 +102,8 @@ node scripts/build-fnos.mjs            # 出 dist/fnos/siteguard-<版本>-x86.fp
 node scripts/build-fnos.mjs --arch x64 # 只出一个架构
 
 # Docker 镜像（备用路径，已可构建）
-docker build -f deploy/Dockerfile -t site-guard:0.8.6 .
-docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.8.6
+docker build -f deploy/Dockerfile -t site-guard:0.8.7 .
+docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard:0.8.7
 ```
 
 ### 🛠️ 技术栈
@@ -127,7 +131,18 @@ docker run --rm -p 8686:8686 -v "$PWD/data:/data" -e TZ=Asia/Shanghai site-guard
 site-guard/
 ├── README.md              # 本文件：面向使用者
 ├── CHANGELOG.md           # 版本历史与详细更新日志
+├── VERSION                # 唯一版本号（vX.Y.Z，与 package.json / manifest / 界面保持一致）
+├── LICENSE                # MIT 许可证全文
+├── NOTICE                 # 版权与第三方组件归因
+├── .env.example           # 全部环境变量说明（复制为 .env 使用）
 ├── package.json           # 版本、脚本、唯一依赖
+├── .trae/rules/           # 团队命名规范与项目约定（供 AI 协作时遵循）
+├── docs-framework/        # 规格先行工作区
+│   ├── SDD_WORKFLOW.md    # 规格驱动开发流程（No Spec, No Code）
+│   ├── templates/         # spec / plan / ADR / PRD 等模板
+│   ├── specs/api/         # OpenAPI 契约（api.yaml，前后端唯一接口真相）
+│   ├── specs/functional/  # 已归档的功能规格（真理源）
+│   └── changes/           # 进行中的功能变更（spec.md + plan.md）
 ├── doc/
 │   ├── FNOS_APP_DEV_GUIDE.md  # 飞牛 fnOS 原生应用通用开发指南（含网关铁律与实机排坑）
 │   ├── DESIGN.md          # 设计方案：需求评估、判定逻辑、选型对比
@@ -142,11 +157,11 @@ site-guard/
 ├── fnos/                  # 飞牛包目录：manifest / cmd / config / wizard / ui
 ├── deploy/                # Dockerfile（Docker 镜像构建，备用路径）
 ├── test/                  # node:test 用例
-├── scripts/               # build-fnos.mjs 打包、make-icons.mjs 图标、镜像推送
+├── scripts/               # build-fnos.mjs 打包、make-icons.mjs 图标、license.mjs 头检查、sdd、service.sh
 └── tools/                 # 运维小工具（备份导出等）
 ```
 
-> 当前 `public/` 已由设计原型演进为正式面板（四页签 + 登录/初始化 + 弹窗），`prototype/` 仅作设计参考；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 124 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、忘记密码（重置码）、接口与网关/Socket。
+> 当前 `public/` 已由设计原型演进为正式面板（四页签 + 登录/初始化 + 弹窗），`prototype/` 仅作设计参考；`fnos/` 已可打包出 `.fpk`（`app/server/` 与 `*.fpk` 是构建产物，已 gitignore）；`test/` 已有 124 条用例，覆盖抓取、正文提取、四档判定、差异、邮件汇总、忘记密码（重置码）、接口与网关/Socket。功能开发遵循 `docs-framework/SDD_WORKFLOW.md`：先在 `docs-framework/changes/<feature>/` 写 `spec.md` 与 `plan.md`，`./scripts/sdd check <feature> implement` 通过后才动代码，改动 API 时同步更新 `docs-framework/specs/api/api.yaml`。
 
 ### 🖱️ 常用操作
 
@@ -180,7 +195,7 @@ site-guard/
 
 ### 📄 许可证
 
-MIT License。
+MIT License，全文见 [LICENSE](LICENSE)；第三方组件归因见 [NOTICE](NOTICE)。
 
 ---
 
@@ -190,7 +205,7 @@ MIT License。
 
 **Site Guard** is a self-hosted website monitoring tool for your NAS. Instead of trusting HTTP 200, it fetches each key page and decides whether the **content** still looks like a healthy page — so a `502 Bad Gateway` served with status 200, a blank page, a maintenance page or a redirect to another domain is reported as an incident. It keeps a baseline of each page, reports content changes with a line diff, and sends **one digest email per run** to your inbox.
 
-Current stage: `0.8.6` ships the real web UI (setup/login, sites and pages, live run progress and logs, verdict details, diffs and baselines, event feed, mail settings) wired to the API; 0.8.5 stacked the overview's "needs attention" and "recent events" cards vertically, and 0.8.6 adds "Forgot password" — after verifying the address matches the first alert recipient, it mails a 20-character grouped reset code that you type into the panel (no link, so it works behind a LAN or the fnOS `/app/siteguard` gateway).
+Current stage: `0.8.7` ships the real web UI (setup/login, sites and pages, live run progress and logs, verdict details, diffs and baselines, event feed, mail settings) wired to the API, plus engineering conventions: root `VERSION` / `LICENSE` / `NOTICE` / `.env.example`, SPDX headers on every source file, a `docs-framework/` spec-first workflow (`No Spec, No Code`) with an OpenAPI contract, `npm run preflight`, and `scripts/service.sh` for local service management.
 
 ### Tech Stack
 
@@ -204,7 +219,7 @@ cd prototype && python3 -m http.server 8899   # open http://127.0.0.1:8899
 # or simply open prototype/index.html
 ```
 
-Deployment (once the backend lands) is a single `docker compose up -d` with `./data:/data`; see [doc/DEPLOY.md](doc/DEPLOY.md).
+Deployment is either the native fnOS `.fpk` package or a single `docker compose up -d` with `./data:/data`; see [doc/DEPLOY.md](doc/DEPLOY.md).
 
 ### Data & Privacy
 
@@ -216,4 +231,4 @@ MIT.
 
 ---
 
-<sub>by Mr lin · v0.8.6</sub>
+<sub>by Mr lin · v0.8.7</sub>

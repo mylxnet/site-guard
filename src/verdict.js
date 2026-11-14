@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /**
  * 四档判定（PROJECT.md 4.3）。
  * 判定 = 规则集合 + 聚合优先级：unknown > bad > suspect > normal。

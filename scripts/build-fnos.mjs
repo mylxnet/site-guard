@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /**
  * 飞牛 fnOS 打包脚本（Native 应用，非 Docker）。
  *

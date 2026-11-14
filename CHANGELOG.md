@@ -6,6 +6,7 @@
 
 | 版本 | 日期 | 一句话 |
 | --- | --- | --- |
+| [0.8.7](#087---2026-11-14) | 2026-11-14 | 落地开发约定：版本单一来源、许可证与版权头、SDD 规格工作区、license/preflight 脚本、本地服务管理 |
 | [0.8.6](#086---2026-11-14) | 2026-11-14 | 登录页新增「忘记密码」：邮件发送 20 位分组重置码，手输重置（不依赖登录地址） |
 | [0.8.5](#085---2026-10-26) | 2026-10-26 | 概览页「需要处理」与「最近事件」由左右并列改为上下全宽 |
 | [0.8.4](#084---2026-10-26) | 2026-10-26 | 手机端修复：页签不再塌陷消失，页面表格改卡片、操作按钮不再跑出屏幕 |
@@ -29,6 +30,38 @@
 ---
 
 ## 详细更新日志（按版本倒序）
+
+### 0.8.7 - 2026-11-14
+
+**背景**：项目此前只有 `package.json` 一处版本号来源，缺许可证与版权头文件，也没有规格先行的工作流与统一的本地启停入口。本轮按团队开发约定（dev-conventions-plugin）补齐工程规范，为后续协作与长期维护打底。
+
+**新增**
+- 根级 `VERSION`（单行 `v0.8.7`）作为版本单一来源；`LICENSE`（MIT 全文，`Copyright (c) 2026 by Mr lin`）；`NOTICE`（项目版权与 Node.js / nodemailer / fnpack 归因）；`.env.example`（19 个环境变量与说明）。
+- `.trae/rules/`：`project_rules.md`（项目约定）与 `name_rules.md`（团队命名规范）。
+- `docs-framework/`：`SDD_WORKFLOW.md`（No Spec, No Code）、9 个模板、`specs/api/api.yaml`（OpenAPI 3.1 接口契约，按现有 `/api/...` 路径）、`specs/functional/`（归档真理源）、`changes/`（进行中变更）。
+- 本轮变更规格：`docs-framework/changes/conventions-retrofit/spec.md` + `plan.md`。
+- `scripts/license.mjs`：SPDX 头检查与 `--fix` 自动补齐；`scripts/sdd`：`new|check|archive|list|check-active`；`scripts/service.sh`：`start|stop|restart|status|health|logs`，日志落 `logs/`。
+- `package.json` 增加 `license:check`、`license:fix`、`preflight`（license 检查 + 全量测试）。
+
+**调整**
+- 全部 36 个 `.js` / `.mjs` 源文件补 `SPDX-License-Identifier: MIT` 与 `Copyright (c) 2026 by Mr lin` 两行头。
+- `.gitignore` 增加 `logs/` 与 `.service.pid`，避免运行期产物入库。
+- 版本号统一为 0.8.7：`VERSION` / `package.json` / `package-lock.json`（两处）/ `fnos/siteguard/manifest` / 界面页脚 / `public/app.js`。
+- 未迁移 `/api/v1` 前缀，接口路径保持原样；未改动日志格式；未安装 Git 钩子（按本轮约定范围）。
+
+**验证**
+- `npm run license:check`：`通过：36 个文件均含 SPDX 头。`
+- `npm run preflight`：`tests 124 / pass 124 / fail 0`（约 0.8s）。
+- `./scripts/sdd list` 返回 `conventions-retrofit`；`./scripts/sdd check conventions-retrofit implement` 输出 spec 与 plan 均有效。
+- `./scripts/service.sh start|status|health|logs|stop` 全流程通过，`/api/health` 返回 `{"ok":true,"data":{"ok":true,"version":"0.8.7","db":"ok","lastRunAt":null}}`。
+
+**边界**
+- `scripts/service.sh` 面向 WSL / Linux 开发自测；Windows 原生请用 `npm start`。
+- 服务退出码在部分 WSL 包装层会被吞掉，`status` 未运行时自身仍按约定返回 3。
+- Git 钩子与 `/api/v1` 迁移留待后续版本，见 `docs-framework/changes/`。
+
+**文档**
+- 同步 README、CHANGELOG、DESIGN、PROJECT、PROJECT_STATE、TEST、DEPLOY。
 
 ### 0.8.6 - 2026-11-14
 

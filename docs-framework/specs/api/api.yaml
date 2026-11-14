@@ -1,0 +1,1793 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 by Mr lin
+
+openapi: 3.1.0
+
+info:
+  title: 网站哨兵 Site Guard API
+  version: 0.8.7
+  description: |
+    网站哨兵（Node.js 22 + node:http）现有 HTTP 接口合同，路径与 `src/routes.js` 路由表逐条对应。
+
+    响应形状统一为：
+    - 成功：`{ "ok": true, "data": ... }`
+    - 失败：`{ "ok": false, "error": { "code": "...", "message": "...", "fields?": { "字段名": "原因" } } }`
+
+    其他约定：
+    - 所有时间戳均为 Unix 毫秒整数（`null` 表示尚未发生）。
+    - 请求体必须是 JSON 对象；解析失败返回 400 `VALIDATION_FAILED`，超限返回 413 `PAYLOAD_TOO_LARGE`。
+    - 未匹配到任何接口时返回 404 `NOT_FOUND`（不区分“路径不存在”与“方法不支持”）。
+    - 写操作（非 GET/HEAD）会做同源校验：浏览器请求需带 `x-siteguard-client` 头（值 1） 头，或 `Origin` 与 Host（含 `ALLOWED_ORIGINS`）一致；不带 `Origin` 的脚本请求直接放行。跨站请求返回 403 `FORBIDDEN`。
+    - 会话 Cookie 名为 `sg_sid`（HttpOnly、SameSite=Strict、Path=/、有效期 30 天）。
+    - 本版本不迁移 `/api/v1`，路径即代码中的 `/api/...`；网关前缀由 `servers` 体现。
+    - `GET /api/sites` 会在每个站点内嵌其页面列表，没有独立的页面列表接口。
+    - `GET /api/events` 的事件对象直接来自数据库行，字段为 snake_case（与其余 lowerCamelCase 接口不同），此处按实际返回记录。
+
+servers:
+  - url: http://127.0.0.1:8686
+    description: 本机直连（默认 PORT=8686，无网关前缀）
+  - url: /app/siteguard
+    description: 飞牛统一网关前缀示例（GATEWAY_PREFIX=/app/siteguard），实际前缀以部署为准
+
+tags:
+  - name: 系统
+    description: 健康检查与初始化状态
+  - name: 认证
+    description: 初始化、登录、登出与密码重置
+  - name: 站点
+    description: 站点增删改查与整轮巡检
+  - name: 页面
+    description: 页面新增、修改、删除、复检、基线与差异
+  - name: 批次
+    description: 巡检批次进度
+  - name: 概览
+    description: 面板概览
+  - name: 事件
+    description: 事件流查询
+  - name: 设置
+    description: 邮件通知设置与测试发信
+
+security:
+  - cookieAuth: []
+
+paths:
+  /api/health:
+    get:
+      tags: [系统]
+      operationId: getHealth
+      summary: 健康检查
+      description: 数据库可用性与版本信息。公开接口。
+      security: []
+      responses:
+        '200':
+          description: 服务健康状态。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Health'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/state:
+    get:
+      tags: [系统]
+      operationId: getState
+      summary: 查询初始化与会话状态
+      description: 返回是否需要初始化、当前请求的会话是否有效、应用版本。公开接口。
+      security: []
+      responses:
+        '200':
+          description: 应用状态。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AppState'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/setup:
+    post:
+      tags: [认证]
+      operationId: setupAdmin
+      summary: 首次初始化管理密码
+      description: |
+        仅在尚未设置管理密码时可用；成功后写入密码哈希、创建会话并下发 `sg_sid` Cookie。
+        密码 8~128 位。已初始化返回 409 `CONFLICT`。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。公开接口。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetupInput'
+      responses:
+        '200':
+          description: 初始化成功并已登录（同时下发 `sg_sid` Cookie）。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SessionResult'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/login:
+    post:
+      tags: [认证]
+      operationId: login
+      summary: 登录
+      description: |
+        校验管理密码并创建会话，响应同时下发 `sg_sid` Cookie。
+        同一 IP 5 分钟内失败 8 次后返回 429 `RATE_LIMITED`；尚未初始化返回 409 `CONFLICT`。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。公开接口。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  description: 管理密码；空或不匹配返回 401。
+      responses:
+        '200':
+          description: 登录成功（同时下发 `sg_sid` Cookie）。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SessionResult'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/logout:
+    post:
+      tags: [认证]
+      operationId: logout
+      summary: 登出
+      description: 销毁当前会话并清除 `sg_sid` Cookie。需要登录；写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      responses:
+        '200':
+          description: 已登出。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SessionResult'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/auth/reset/request:
+    post:
+      tags: [认证]
+      operationId: requestPasswordReset
+      summary: 申请密码重置码
+      description: |
+        邮箱必须等于「邮件通知收件人」的第一个地址；重置码为 20 位 Crockford Base32，30 分钟有效、仅可使用一次，
+        通过告警 SMTP 发送。限流：同 IP 5 分钟 3 次，全局每小时最多 10 封。
+        未启用邮件/收件人为空返回 409 `MAIL_UNAVAILABLE`；邮箱不匹配返回 403 `EMAIL_NOT_ALLOWED`。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。公开接口。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: 必须是已配置邮件收件人中的第一个地址。
+      responses:
+        '200':
+          description: 重置码已提交发送。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResetRequestResult'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403':
+          description: 同源校验失败返回 `FORBIDDEN`；邮箱与配置收件人不一致返回 `EMAIL_NOT_ALLOWED`（`fields.email`）。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: 尚未初始化返回 `CONFLICT`；邮件模块未启用或收件人为空返回 `MAIL_UNAVAILABLE`。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/auth/reset/confirm:
+    post:
+      tags: [认证]
+      operationId: confirmPasswordReset
+      summary: 用重置码设置新密码
+      description: |
+        校验重置码与新密码：密码至少 4 位；重置码会去除分隔符并统一大写（同时纠正 O→0、I/L→1），
+        归一化后必须为 20 位。成功后更新密码、删除该邮箱全部重置码并注销所有会话。
+        同 IP 10 分钟最多 5 次失败。写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。公开接口。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password, code]
+              properties:
+                password:
+                  type: string
+                  minLength: 4
+                  description: 新密码，至少 4 位。
+                code:
+                  type: string
+                  description: 邮件中的 20 位重置码，可带 `-` 分隔符。
+                  example: ABCD-EFGH-JKMN-PQRS-TVWX
+      responses:
+        '200':
+          description: 密码已重置。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResetConfirmResult'
+        '400':
+          description: |
+            密码不合格返回 `VALIDATION_FAILED`（`fields.password`）；
+            重置码错误、过期或已使用返回 `INVALID_RESET_CODE`（`fields.code`）。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/sites:
+    get:
+      tags: [站点]
+      operationId: listSites
+      summary: 查询全部站点
+      description: 按 id 升序返回全部站点，每个站点内嵌其页面列表与各页面最近一次检测结果。
+      responses:
+        '200':
+          description: 站点列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Site'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    post:
+      tags: [站点]
+      operationId: createSite
+      summary: 新增站点
+      description: |
+        校验名称、地址、计划与时间区；新站点立即纳入下一轮巡检（nextRunAt 设为当前时间）。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteInput'
+      responses:
+        '200':
+          description: 已创建站点。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Site'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/sites/{id}:
+    patch:
+      tags: [站点]
+      operationId: updateSite
+      summary: 修改站点
+      description: |
+        部分更新：未提供的字段沿用原值；整体重新校验后重算 nextRunAt。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/SiteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SitePatch'
+      responses:
+        '200':
+          description: 已更新站点。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Site'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    delete:
+      tags: [站点]
+      operationId: deleteSite
+      summary: 删除站点
+      description: 连带删除该站点的页面、快照、检测记录与事件。写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/SiteId'
+      responses:
+        '200':
+          description: 已删除。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RemoveResult'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/sites/{id}/run:
+    post:
+      tags: [站点]
+      operationId: runSite
+      summary: 触发站点整轮巡检
+      description: |
+        异步开始一轮巡检并立即返回 batchId，用 `GET /api/batches/{id}` 轮询进度。
+        站点正在巡检、或并发已达上限（默认 2）时返回 409 `CONFLICT`。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/SiteId'
+      responses:
+        '200':
+          description: 批次已创建。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BatchRef'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/sites/{id}/pages:
+    post:
+      tags: [页面]
+      operationId: createPage
+      summary: 在站点下新增页面
+      description: |
+        单站点页面数上限由 `MAX_PAGES_PER_SITE` 控制（默认 30），超限返回 409 `CONFLICT`。
+        页面列表通过 `GET /api/sites` 获取，本接口只负责新增。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/SiteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageInput'
+      responses:
+        '200':
+          description: 已创建页面（lastCheck 为 null）。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Page'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/pages/{id}:
+    patch:
+      tags: [页面]
+      operationId: updatePage
+      summary: 修改页面
+      description: 部分更新：未提供的字段沿用原值，整体重新校验。写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagePatch'
+      responses:
+        '200':
+          description: 已更新页面（lastCheck 为 null）。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Page'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    delete:
+      tags: [页面]
+      operationId: deletePage
+      summary: 删除页面
+      description: 连带删除该页面的快照、检测记录与事件。写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      responses:
+        '200':
+          description: 已删除。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RemoveResult'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/pages/{id}/run:
+    post:
+      tags: [页面]
+      operationId: runPage
+      summary: 复检单个页面
+      description: |
+        同步抓取并判定该页面，返回本次检测结果与更新后的页面对象。
+        页面已停用、或所属站点正在巡检时返回 409 `CONFLICT`；检测引擎未启用返回 503 `ENGINE_MISSING`。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      responses:
+        '200':
+          description: 复检完成。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RunPageResult'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/EngineMissing' }
+
+  /api/pages/{id}/detail:
+    get:
+      tags: [页面]
+      operationId: getPageDetail
+      summary: 查询页面判定详情
+      description: 返回页面、所属站点摘要、基线快照、最新快照与差异计数（没有基线或最新快照时为 null）。
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      responses:
+        '200':
+          description: 页面详情。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PageDetail'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/pages/{id}/diff:
+    get:
+      tags: [页面]
+      operationId: getPageDiff
+      summary: 查询基线与最新快照的差异
+      description: |
+        按多重集合差集返回新增/删除行（每侧最多 200 行）。
+        没有基线或没有快照时返回 409 `CONFLICT`。
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      responses:
+        '200':
+          description: 差异结果。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DiffResult'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/pages/{id}/accept:
+    post:
+      tags: [页面]
+      operationId: acceptPageSnapshot
+      summary: 确认变更并设为新基线
+      description: |
+        把最新快照提升为基线，并把页面状态重置为 normal。仅当最近快照判定为 normal 或 suspect 时允许；
+        判定为 bad/unknown、或还没有快照时返回 409 `CONFLICT`。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      responses:
+        '200':
+          description: 已更新基线。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PageResult'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/overview:
+    get:
+      tags: [概览]
+      operationId: getOverview
+      summary: 面板概览
+      description: 返回站点/页面计数、页面状态分布、最近巡检时间、下一轮时间、最多 10 个需关注页面与最近 10 条事件。
+      responses:
+        '200':
+          description: 概览数据。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Overview'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/events:
+    get:
+      tags: [事件]
+      operationId: listEvents
+      summary: 分页查询事件
+      description: |
+        按 id 倒序返回事件，支持按类型与站点过滤。
+        `limit` 会被夹紧到 1~200（默认 50），`offset` 夹紧到 0~1000000（默认 0）；非数字按默认值处理。
+        事件对象为数据库原始行，字段为 snake_case。
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [bad, suspect, unknown, changed, recovered, system]
+          description: 事件类型；传其他值返回 400 `VALIDATION_FAILED`。
+        - name: siteId
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\d+$'
+          description: 站点 ID，必须是纯数字；否则返回 400 `VALIDATION_FAILED`。
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 1000000
+            default: 0
+      responses:
+        '200':
+          description: 事件分页结果。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/EventList'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/settings:
+    get:
+      tags: [设置]
+      operationId: getSettings
+      summary: 查询邮件通知设置
+      description: 密码永不回显，仅通过 `hasPassword` 表示是否已保存。
+      responses:
+        '200':
+          description: 邮件设置。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MailSettings'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    put:
+      tags: [设置]
+      operationId: updateSettings
+      summary: 保存邮件通知设置
+      description: |
+        未提供的字段沿用已保存值；`password` 留空表示不修改。
+        启用告警时强制要求 host、from 与至少一个收件人。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MailSettingsInput'
+      responses:
+        '200':
+          description: 已保存（返回脱敏后的设置）。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MailSettings'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/settings/test-mail:
+    post:
+      tags: [设置]
+      operationId: sendTestMail
+      summary: 发送测试邮件
+      description: |
+        可临时指定 `to`（逗号/中文逗号/分号/换行分隔）；不传则使用已保存收件人。
+        SMTP 服务器或发件人未填写、收件人为空返回 400 `VALIDATION_FAILED`；
+        邮件模块未启用返回 503 `MAIL_DISABLED`；发送失败也以 400 `VALIDATION_FAILED` 返回原因。
+        写操作需带 `x-siteguard-client` 头（值 1）（或同源 Origin）。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                  description: 临时收件人列表，支持逗号、中文逗号、分号、换行分隔。
+      responses:
+        '200':
+          description: 测试邮件已发送。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TestMailResult'
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/MailDisabled' }
+
+  /api/batches/{id}:
+    get:
+      tags: [批次]
+      operationId: getBatch
+      summary: 查询批次进度
+      description: 批次只存在内存（最多保留 20 条）；进程重启或过期后返回 404 `NOT_FOUND`。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[\w-]+$'
+          description: 批次 ID（形如 `3-1763000000000`）。
+      responses:
+        '200':
+          description: 批次状态。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/OkEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Batch'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sg_sid
+      description: 初始化或登录后由服务端下发的会话 Cookie（HttpOnly；SameSite=Strict；Path=/；30 天）。
+
+  parameters:
+    SiteId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: 站点 ID。
+    PageId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: 页面 ID。
+
+  responses:
+    ValidationFailed:
+      description: 输入校验失败（`VALIDATION_FAILED`），`fields` 给出逐字段原因。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: 未登录或会话已过期（`UNAUTHORIZED`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: 同源校验失败（`FORBIDDEN`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: 资源不存在（`NOT_FOUND`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Conflict:
+      description: 当前状态不允许该操作（`CONFLICT`），如已初始化、站点正在巡检、页面数超限、缺少基线等。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    PayloadTooLarge:
+      description: 请求体超过限制（`PAYLOAD_TOO_LARGE`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: 触发限流（`RATE_LIMITED`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: 服务器内部错误（`INTERNAL`），消息固定为「服务器内部错误」。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    EngineMissing:
+      description: 检测引擎未启用（`ENGINE_MISSING`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    MailDisabled:
+      description: 邮件模块未启用（`MAIL_DISABLED`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    OkEnvelope:
+      type: object
+      description: 成功响应统一包裹；`data` 由各接口覆盖为具体类型。
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data: {}
+
+    ErrorEnvelope:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+
+    ErrorDetail:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - VALIDATION_FAILED
+            - CONFLICT
+            - NOT_FOUND
+            - PAYLOAD_TOO_LARGE
+            - RATE_LIMITED
+            - EMAIL_NOT_ALLOWED
+            - MAIL_UNAVAILABLE
+            - INVALID_RESET_CODE
+            - ENGINE_MISSING
+            - MAIL_DISABLED
+            - INTERNAL
+        message:
+          type: string
+        fields:
+          type: object
+          description: 逐字段错误原因，仅校验类错误携带。
+          additionalProperties:
+            type: string
+
+    Health:
+      type: object
+      required: [ok, version, db, lastRunAt]
+      properties:
+        ok:
+          type: boolean
+          description: 数据库是否可用。
+        version:
+          type: string
+          description: 应用版本。
+        db:
+          type: string
+          const: ok
+        lastRunAt:
+          type: [integer, 'null']
+          description: 所有站点最近一次巡检完成时间（毫秒时间戳）。
+
+    AppState:
+      type: object
+      required: [needSetup, loggedIn, version]
+      properties:
+        needSetup:
+          type: boolean
+          description: 是否尚未设置管理密码。
+        loggedIn:
+          type: boolean
+          description: 当前请求携带的会话是否有效。
+        version:
+          type: string
+
+    SetupInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+
+    SessionResult:
+      type: object
+      required: [loggedIn]
+      properties:
+        loggedIn:
+          type: boolean
+
+    ResetRequestResult:
+      type: object
+      required: [sent, email, expiresAt]
+      properties:
+        sent:
+          type: boolean
+          const: true
+        email:
+          type: string
+        expiresAt:
+          type: integer
+          description: 重置码过期时间（毫秒时间戳）。
+
+    ResetConfirmResult:
+      type: object
+      required: [reset]
+      properties:
+        reset:
+          type: boolean
+          const: true
+
+    RemoveResult:
+      type: object
+      required: [removed]
+      properties:
+        removed:
+          type: boolean
+          const: true
+
+    BatchRef:
+      type: object
+      required: [batchId]
+      properties:
+        batchId:
+          type: string
+
+    TestMailResult:
+      type: object
+      required: [sent, to, messageId]
+      properties:
+        sent:
+          type: boolean
+          const: true
+        to:
+          type: string
+          description: 实际收件人，逗号分隔。
+        messageId:
+          type: [string, 'null']
+
+    SiteInput:
+      type: object
+      required: [name, baseUrl, scheduleValue]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        baseUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: 仅支持 http:// 或 https://。
+        scheduleMode:
+          type: string
+          enum: [daily, interval]
+          default: daily
+        scheduleValue:
+          type: string
+          description: |
+            daily：`HH:MM` 列表，逗号分隔，最多 4 个（如 `09:00, 21:00`）；
+            interval：只能是 1/2/3/4/6/8/12/24 之一（小时）。
+        timezone:
+          type: string
+          default: Asia/Shanghai
+          description: IANA 时区名，如 `Asia/Shanghai`。
+        enabled:
+          type: boolean
+          default: true
+
+    SitePatch:
+      type: object
+      description: 部分更新，未提供的字段沿用原值。
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        baseUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+        scheduleMode:
+          type: string
+          enum: [daily, interval]
+        scheduleValue:
+          type: string
+          description: daily 为 `HH:MM` 列表（最多 4 个）；interval 为 1/2/3/4/6/8/12/24 之一。
+        timezone:
+          type: string
+        enabled:
+          type: boolean
+
+    Site:
+      type: object
+      required:
+        - id
+        - name
+        - baseUrl
+        - scheduleMode
+        - scheduleValue
+        - scheduleLabel
+        - timezone
+        - enabled
+        - lastRunAt
+        - nextRunAt
+        - createdAt
+        - pagesCount
+        - pages
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        baseUrl:
+          type: string
+        scheduleMode:
+          type: string
+          enum: [daily, interval]
+        scheduleValue:
+          type: string
+        scheduleLabel:
+          type: string
+          description: 人类可读的计划描述，如「每天 09:00, 21:00」或「每 2 小时」。
+        timezone:
+          type: string
+        enabled:
+          type: boolean
+        lastRunAt:
+          type: [integer, 'null']
+        nextRunAt:
+          type: [integer, 'null']
+        createdAt:
+          type: integer
+        pagesCount:
+          type: integer
+        pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Page'
+
+    SiteBrief:
+      type: object
+      required: [id, name, baseUrl, timezone]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        baseUrl:
+          type: string
+        timezone:
+          type: string
+
+    CheckReason:
+      type: object
+      required: [hit, level, text]
+      properties:
+        hit:
+          type: boolean
+          const: true
+        level:
+          type: string
+          enum: [bad, suspect, unknown]
+        text:
+          type: string
+
+    Check:
+      type: object
+      description: 页面最近一次检测结果摘要。
+      required: [verdict, changed, httpCode, responseMs, textLen, title, ranAt, reasons]
+      properties:
+        verdict:
+          type: string
+          enum: [normal, suspect, bad, unknown]
+        changed:
+          type: boolean
+        httpCode:
+          type: [integer, 'null']
+        responseMs:
+          type: [integer, 'null']
+        textLen:
+          type: [integer, 'null']
+        title:
+          type: [string, 'null']
+        ranAt:
+          type: integer
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckReason'
+
+    Page:
+      type: object
+      required:
+        - id
+        - siteId
+        - name
+        - url
+        - mustContain
+        - ignorePatterns
+        - keywords
+        - enabled
+        - state
+        - changed
+        - baselineId
+        - lastCheckedAt
+        - lastMessage
+        - lastAlertAt
+        - createdAt
+        - lastCheck
+      properties:
+        id:
+          type: integer
+        siteId:
+          type: integer
+        name:
+          type: string
+        url:
+          type: string
+        mustContain:
+          type: array
+          items:
+            type: string
+        ignorePatterns:
+          type: array
+          items:
+            type: string
+        keywords:
+          type: string
+          description: 敏感词以逗号拼接后的字符串（写入时可传字符串或数组）。
+        enabled:
+          type: boolean
+        state:
+          type: string
+          enum: [normal, suspect, bad, unknown]
+        changed:
+          type: boolean
+        baselineId:
+          type: [integer, 'null']
+        lastCheckedAt:
+          type: [integer, 'null']
+        lastMessage:
+          type: string
+        lastAlertAt:
+          type: [integer, 'null']
+        createdAt:
+          type: integer
+        lastCheck:
+          oneOf:
+            - $ref: '#/components/schemas/Check'
+            - type: 'null'
+
+    StringListInput:
+      oneOf:
+        - type: string
+          description: 按逗号、中文逗号或换行分隔。
+        - type: array
+          items:
+            type: string
+
+    PageInput:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: 仅支持 http:// 或 https://。
+        mustContain:
+          allOf:
+            - $ref: '#/components/schemas/StringListInput'
+          description: 必须包含的文字，最多 10 项，每项最多 100 字符。
+        ignorePatterns:
+          allOf:
+            - $ref: '#/components/schemas/StringListInput'
+          description: 忽略规则（正则），最多 50 项，每项最多 200 字符且必须能编译。
+        keywords:
+          allOf:
+            - $ref: '#/components/schemas/StringListInput'
+          description: 敏感词，最多 30 项，每项最多 20 字符。
+        enabled:
+          type: boolean
+          default: true
+
+    PagePatch:
+      type: object
+      description: 部分更新，未提供的字段沿用原值。
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+        mustContain:
+          allOf:
+            - $ref: '#/components/schemas/StringListInput'
+          description: 最多 10 项，每项最多 100 字符。
+        ignorePatterns:
+          allOf:
+            - $ref: '#/components/schemas/StringListInput'
+          description: 最多 50 项，每项最多 200 字符且必须能编译。
+        keywords:
+          allOf:
+            - $ref: '#/components/schemas/StringListInput'
+          description: 最多 30 项，每项最多 20 字符。
+        enabled:
+          type: boolean
+
+    Snapshot:
+      type: object
+      required: [id, kind, createdAt, hash, textLen, title, httpCode, verdict]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [baseline, check]
+        createdAt:
+          type: integer
+        hash:
+          type: string
+          description: 正文 SHA-256。
+        textLen:
+          type: integer
+        title:
+          type: string
+        httpCode:
+          type: [integer, 'null']
+        verdict:
+          type: [string, 'null']
+          enum: [normal, suspect, bad, unknown, null]
+
+    DiffSummary:
+      type: object
+      required: [addedCount, removedCount]
+      properties:
+        addedCount:
+          type: integer
+        removedCount:
+          type: integer
+
+    DiffResult:
+      type: object
+      required: [baseline, latest, added, removed, addedCount, removedCount, truncated]
+      properties:
+        baseline:
+          $ref: '#/components/schemas/Snapshot'
+        latest:
+          $ref: '#/components/schemas/Snapshot'
+        added:
+          type: array
+          items:
+            type: string
+        removed:
+          type: array
+          items:
+            type: string
+        addedCount:
+          type: integer
+        removedCount:
+          type: integer
+        truncated:
+          type: boolean
+          description: 单侧差异行数超过 200 时为 true。
+
+    PageDetail:
+      type: object
+      required: [page, site, baseline, latestSnapshot, diffSummary]
+      properties:
+        page:
+          $ref: '#/components/schemas/Page'
+        site:
+          oneOf:
+            - $ref: '#/components/schemas/SiteBrief'
+            - type: 'null'
+        baseline:
+          oneOf:
+            - $ref: '#/components/schemas/Snapshot'
+            - type: 'null'
+        latestSnapshot:
+          oneOf:
+            - $ref: '#/components/schemas/Snapshot'
+            - type: 'null'
+        diffSummary:
+          oneOf:
+            - $ref: '#/components/schemas/DiffSummary'
+            - type: 'null'
+
+    CheckResult:
+      type: object
+      description: 单页检测（含手动复检）的完整结果。
+      required:
+        - pageId
+        - verdict
+        - changed
+        - contentChanged
+        - message
+        - reasons
+        - httpCode
+        - responseMs
+        - textLen
+        - title
+        - finalUrl
+        - snapshotId
+        - baselineId
+        - diff
+        - eventType
+      properties:
+        pageId:
+          type: integer
+        verdict:
+          type: string
+          enum: [normal, suspect, bad, unknown]
+        changed:
+          type: boolean
+          description: 是否标记为内容变更（仅 verdict 为 normal 时为 true）。
+        contentChanged:
+          type: boolean
+          description: 正文哈希是否与基线不同。
+        message:
+          type: string
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckReason'
+        httpCode:
+          type: [integer, 'null']
+        responseMs:
+          type: [integer, 'null']
+        textLen:
+          type: integer
+        title:
+          type: string
+        finalUrl:
+          type: string
+        snapshotId:
+          type: [integer, 'null']
+          description: 本次落库的快照 ID（抓取失败时为 null）。
+        baselineId:
+          type: [integer, 'null']
+        diff:
+          oneOf:
+            - $ref: '#/components/schemas/DiffSummary'
+            - type: 'null'
+        eventType:
+          type: [string, 'null']
+          enum: [bad, suspect, unknown, changed, recovered, system, null]
+
+    RunPageResult:
+      type: object
+      required: [result, page]
+      properties:
+        result:
+          $ref: '#/components/schemas/CheckResult'
+        page:
+          $ref: '#/components/schemas/Page'
+
+    PageResult:
+      type: object
+      required: [page]
+      properties:
+        page:
+          $ref: '#/components/schemas/Page'
+
+    PagesByState:
+      type: object
+      required: [normal, suspect, bad, unknown]
+      properties:
+        normal:
+          type: integer
+        suspect:
+          type: integer
+        bad:
+          type: integer
+        unknown:
+          type: integer
+
+    OverviewPage:
+      allOf:
+        - $ref: '#/components/schemas/Page'
+        - type: object
+          required: [siteName]
+          properties:
+            siteName:
+              type: string
+              description: 所属站点名称；站点已删除时为空字符串。
+
+    Event:
+      type: object
+      description: 数据库原始事件行（snake_case），列表接口直接返回。
+      required:
+        - id
+        - batch_id
+        - site_id
+        - page_id
+        - type
+        - message
+        - notified
+        - created_at
+        - page_name
+        - site_name
+      properties:
+        id:
+          type: integer
+        batch_id:
+          type: [string, 'null']
+        site_id:
+          type: [integer, 'null']
+        page_id:
+          type: [integer, 'null']
+        type:
+          type: string
+          enum: [bad, suspect, unknown, changed, recovered, system]
+        message:
+          type: string
+        notified:
+          type: boolean
+          description: 是否已随汇总邮件通知。
+        created_at:
+          type: integer
+        page_name:
+          type: [string, 'null']
+        site_name:
+          type: [string, 'null']
+
+    EventList:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    Overview:
+      type: object
+      required:
+        - sites
+        - enabledSites
+        - pages
+        - pagesByState
+        - changed
+        - lastRunAt
+        - nextRunAt
+        - needsAttention
+        - recentEvents
+      properties:
+        sites:
+          type: integer
+        enabledSites:
+          type: integer
+        pages:
+          type: integer
+        pagesByState:
+          $ref: '#/components/schemas/PagesByState'
+        changed:
+          type: integer
+        lastRunAt:
+          type: [integer, 'null']
+        nextRunAt:
+          type: [integer, 'null']
+          description: 启用站点中最早的下一轮时间。
+        needsAttention:
+          type: array
+          description: 状态非 normal 或标记为 changed 的页面，按最近检测时间倒序，最多 10 个。
+          items:
+            $ref: '#/components/schemas/OverviewPage'
+        recentEvents:
+          type: array
+          description: 最近 10 条事件。
+          items:
+            $ref: '#/components/schemas/Event'
+
+    BatchSummary:
+      type: object
+      description: '巡检汇总；失败时为 `{ "error": "..." }`。'
+      properties:
+        verdicts:
+          type: object
+          description: 各判定结果的数量。
+          additionalProperties:
+            type: integer
+        changed:
+          type: integer
+        checked:
+          type: integer
+        skipped:
+          type: integer
+        events:
+          type: integer
+        error:
+          type: string
+
+    Batch:
+      type: object
+      required:
+        - id
+        - siteId
+        - siteName
+        - trigger
+        - status
+        - startedAt
+        - finishedAt
+        - total
+        - done
+        - progress
+        - lines
+        - summary
+      properties:
+        id:
+          type: string
+        siteId:
+          type: integer
+        siteName:
+          type: string
+        trigger:
+          type: string
+          enum: [manual, schedule, catchup]
+        status:
+          type: string
+          enum: [running, done, error]
+        startedAt:
+          type: integer
+        finishedAt:
+          type: [integer, 'null']
+        total:
+          type: integer
+        done:
+          type: integer
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 完成百分比；total 为 0 时 running 为 0、否则为 100。
+        lines:
+          type: array
+          description: 实时日志行，最多保留 200 行。
+          items:
+            type: string
+        summary:
+          oneOf:
+            - $ref: '#/components/schemas/BatchSummary'
+            - type: 'null'
+
+    MailSettings:
+      type: object
+      required:
+        - enabled
+        - host
+        - port
+        - secure
+        - user
+        - from
+        - to
+        - cooldownHours
+        - panelUrl
+        - hasPassword
+      properties:
+        enabled:
+          type: boolean
+        host:
+          type: string
+        port:
+          type: integer
+        secure:
+          type: string
+          enum: [ssl, starttls, none]
+        user:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+          description: 收件人，逗号分隔。
+        cooldownHours:
+          type: integer
+          description: 内容变更告警冷却小时数。
+        panelUrl:
+          type: string
+          description: 邮件中「查看面板」链接，可为空。
+        hasPassword:
+          type: boolean
+          description: 是否已保存密码/授权码（密码不回显）。
+
+    MailSettingsInput:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        host:
+          type: string
+          maxLength: 255
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        secure:
+          type: string
+          enum: [ssl, starttls, none]
+        user:
+          type: string
+          maxLength: 255
+        password:
+          type: string
+          maxLength: 255
+          writeOnly: true
+          description: 留空表示不修改。
+        from:
+          type: string
+          format: email
+        to:
+          type: string
+          description: 收件人，支持逗号、中文逗号、分号、换行分隔，最多 10 个。
+        cooldownHours:
+          type: integer
+          minimum: 0
+          maximum: 168
+        panelUrl:
+          type: string
+          format: uri

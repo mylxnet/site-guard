@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 import { readJson, ok, fail, HttpError, assertSameOrigin, setCookie, clientIp, unauthorized, conflict, notFound } from './http.js';
 import {
   getSetting,

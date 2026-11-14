@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /**
  * 抓取页面（PROJECT.md 4.1）。
  * 手动处理重定向：需要限跳数、要记录最终地址，Node 的 fetch 自动跟随不暴露跳数。

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 import { listSites, getSite, markSiteRun } from './db.js';
 import { isDue, isCatchUp, nextRunAt, localParts } from './schedule.js';
 import { conflict, notFound } from './http.js';

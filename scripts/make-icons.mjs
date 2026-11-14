@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /**
  * 生成飞牛应用图标（零依赖，直接手写 PNG）。
  *

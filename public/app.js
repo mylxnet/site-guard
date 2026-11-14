@@ -1,8 +1,11 @@
-/* 网站哨兵 · 面板前端 · v0.8.6
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
+/* 网站哨兵 · 面板前端 · v0.8.7
  * 对接 /api/*：初始化/登录、忘记密码（邮件重置码）、站点与页面 CRUD、真实巡检进度、判定详情、差异与基线、事件流、邮件设置。
  */
 
-const VERSION = 'v0.8.6';
+const VERSION = 'v0.8.7';
 
 /* 同源 API 基址：直连（/）与飞牛统一网关（/app/<appname>/）都成立。 */
 const API_BASE = (() => {

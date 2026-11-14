@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
 
 export function createLogger(level = 'info') {

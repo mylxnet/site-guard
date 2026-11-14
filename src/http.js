@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /** 极简 HTTP 工具：统一 JSON 形状、请求体解析、Cookie、同源校验。 */
 
 export const MAX_BODY_BYTES = 1024 * 1024;

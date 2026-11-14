@@ -1,0 +1,9 @@
+网站哨兵 Site Guard
+Copyright (c) 2026 by Mr lin
+
+本产品以 MIT License 发布，全文见 LICENSE。
+
+第三方组件归因
+- Node.js（MIT）：运行时，内置 fetch 与 node:sqlite。
+- nodemailer（MIT）：SMTP 发信，唯一 npm 依赖。
+- 飞牛 fnOS 应用打包工具 fnpack：仅在构建 .fpk 时使用，不随源码分发。

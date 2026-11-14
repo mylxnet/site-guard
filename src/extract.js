@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /**
  * 正文提取与归一化（PROJECT.md 4.2）。
  * 任何输入都不抛错：解析失败退化成空正文，交给判定层报“接近空白页”，

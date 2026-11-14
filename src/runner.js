@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 import { listPages } from './db.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

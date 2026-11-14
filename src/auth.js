@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 import crypto from 'node:crypto';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 天

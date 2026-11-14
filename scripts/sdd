@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# SDD Enforcement Tool (Bash Version)
+# Usage: ./scripts/sdd {new|check|archive|list|check-active}
+set -euo pipefail
+
+DOCS_ROOT="docs-framework"
+CHANGES_DIR="$DOCS_ROOT/changes"
+TEMPLATES_DIR="$DOCS_ROOT/templates"
+SPECS_DIR="$DOCS_ROOT/specs/functional"
+
+RED=$'\033[31m'
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+NC=$'\033[0m'
+
+print_usage() {
+    echo "用法: ./scripts/sdd {new|check|archive|list|check-active}"
+    echo "  new <feature>              创建新功能变更提案"
+    echo "  check <feature> plan       验证 spec 可进入计划阶段"
+    echo "  check <feature> implement  验证 spec + plan 可进入实现阶段"
+    echo "  check-active               (内部) Git 钩子使用"
+    echo "  archive <feature>          归档已完成功能"
+    echo "  list                       列出活跃功能"
+}
+
+ensure_templates() {
+    if [ ! -f "$TEMPLATES_DIR/spec-template.md" ]; then
+        echo "${RED}错误: spec-template.md 模板未找到${NC}"
+        exit 1
+    fi
+}
+
+cmd_new() {
+    local feature="$1"
+    if [ -z "$feature" ]; then
+        echo "${RED}错误: 必须提供功能名称${NC}"
+        print_usage
+        exit 1
+    fi
+
+    local target_dir="$CHANGES_DIR/$feature"
+    if [ -d "$target_dir" ]; then
+        echo "${RED}错误: 功能 '$feature' 已存在${NC}"
+        exit 1
+    fi
+
+    ensure_templates
+    mkdir -p "$target_dir"
+    cp "$TEMPLATES_DIR/spec-template.md" "$target_dir/spec.md"
+    sed -i.bak "s/\[Feature Name\]/$feature/g" "$target_dir/spec.md" 2>/dev/null || true
+    rm -f "$target_dir/spec.md.bak"
+
+    echo "${GREEN}✓ 已创建功能 '$feature' 于 $target_dir${NC}"
+    echo "下一步: 编辑 $target_dir/spec.md 填写需求"
+}
+
+cmd_check_plan() {
+    local feature="$1"
+    local spec_file="$CHANGES_DIR/$feature/spec.md"
+
+    if [ ! -f "$spec_file" ]; then
+        echo "${RED}错误: 未找到 '$feature' 的 spec 文件${NC}"
+        exit 1
+    fi
+
+    if grep -q '\[Brief description\]\|\[简要描述\]' "$spec_file"; then
+        echo "${RED}错误: spec 文件仍包含模板占位符${NC}"
+        exit 1
+    fi
+
+    echo "${GREEN}✓ '$feature' 的 spec 有效，可以进入计划阶段${NC}"
+
+    local plan_file="$CHANGES_DIR/$feature/plan.md"
+    if [ ! -f "$plan_file" ] && [ -f "$TEMPLATES_DIR/plan-template.md" ]; then
+        cp "$TEMPLATES_DIR/plan-template.md" "$plan_file"
+        sed -i.bak "s/\[Feature Name\]/$feature/g" "$plan_file" 2>/dev/null || true
+        rm -f "$plan_file.bak"
+        echo "${YELLOW}已生成 plan 草稿于 $plan_file${NC}"
+    fi
+}
+
+cmd_check_active() {
+    # Git 钩子专用
+    if [ ! -d "$CHANGES_DIR" ] || [ -z "$(ls -A "$CHANGES_DIR" 2>/dev/null)" ]; then
+        echo "${RED}阻塞: 未找到活跃的功能 spec${NC}"
+        echo "请先运行 '${YELLOW}./scripts/sdd new <feature-name>${NC}'"
+        exit 1
+    fi
+
+    local first_feature
+    first_feature=$(ls "$CHANGES_DIR" | head -1)
+    local spec_file="$CHANGES_DIR/$first_feature/spec.md"
+
+    if [ ! -f "$spec_file" ] || grep -q '\[Brief description\]\|\[简要描述\]' "$spec_file"; then
+        echo "${RED}阻塞: 活跃 spec '$first_feature' 仍是模板${NC}"
+        exit 1
+    fi
+
+    echo "${GREEN}✓ 活跃 spec: $first_feature${NC}"
+    exit 0
+}
+
+cmd_archive() {
+    local feature="$1"
+    if [ -z "$feature" ]; then
+        echo "${RED}错误: 必须提供功能名称${NC}"
+        exit 1
+    fi
+
+    local target_dir="$CHANGES_DIR/$feature"
+    if [ ! -d "$target_dir" ]; then
+        echo "${RED}错误: 未找到 '$feature'${NC}"
+        exit 1
+    fi
+
+    echo "${YELLOW}正在归档 '$feature'...${NC}"
+
+    mkdir -p "$SPECS_DIR"
+    local date_str
+    date_str=$(date +%Y%m%d)
+
+    if [ -f "$target_dir/spec.md" ]; then
+        cp "$target_dir/spec.md" "$SPECS_DIR/${feature}_${date_str}.md"
+        echo "${GREEN}✓ spec 已归档${NC}"
+    fi
+
+    rm -rf "$target_dir"
+    echo "${GREEN}✓ 活跃变更目录已删除${NC}"
+}
+
+cmd_list() {
+    if [ -d "$CHANGES_DIR" ]; then
+        ls "$CHANGES_DIR" | sort
+    fi
+}
+
+case "${1:-}" in
+    new)           cmd_new "${2:-}" ;;
+    check)
+        feature="${2:-}"
+        stage="${3:-}"
+        case "$stage" in
+            plan)            cmd_check_plan "$feature" ;;
+            implement)
+                cmd_check_plan "$feature"
+                plan_file="$CHANGES_DIR/$feature/plan.md"
+                if [ ! -f "$plan_file" ]; then
+                    echo "${RED}错误: 未找到 plan 文件${NC}"
+                    exit 1
+                fi
+                if grep -q '\[Link to spec\.md\]\|\[链接到 spec\.md\]' "$plan_file"; then
+                    echo "${RED}错误: plan 文件仍包含模板占位符${NC}"
+                    exit 1
+                fi
+                echo "${GREEN}✓ '$feature' 的 plan 有效，可以开始实现${NC}"
+                ;;
+            *) print_usage; exit 1 ;;
+        esac
+        ;;
+    check-active)   cmd_check_active ;;
+    archive)       cmd_archive "${2:-}" ;;
+    list)          cmd_list ;;
+    *)             print_usage; exit 1 ;;
+esac

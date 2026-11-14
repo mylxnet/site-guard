@@ -1,8 +1,8 @@
 # 网站哨兵 Site Guard · 开发技术文档
 
-> 版本：0.8.6 ｜ 日期：2026-11-14 ｜ 作者：by Mr lin
+> 版本：0.8.7 ｜ 日期：2026-11-14 ｜ 作者：by Mr lin
 > 读者：维护本项目的开发者。设计方案（为什么这么做）见 [DESIGN.md](DESIGN.md)；部署运维见 [DEPLOY.md](DEPLOY.md)。
-> 状态说明：截至 `0.8.6` 已实现抓取、归一化、四档判定、基线/差异、邮件汇总与事件/设置接口，以及接入真实 API 的正式前端面板；`0.8.1` 修复网关裸前缀下的相对资源加载，`0.8.2` 修复网关改写 `Host` 下的同源校验，`0.8.3` 修复忽略规则与基线不对称（比对前按当前规则过滤基线，改规则即时生效），`0.8.4` 修复手机端页签塌陷与页面表格溢出，`0.8.5` 把概览页「需要处理」与「最近事件」改为上下全宽，`0.8.6` 新增忘记密码（邮箱校验 + 告警 SMTP 发 20 位分组重置码 + 手输重置，不依赖登录地址）。标注 `[已实现]` 的部分有代码与测试；未标注的为后续规范。
+> 状态说明：截至 `0.8.7` 已实现抓取、归一化、四档判定、基线/差异、邮件汇总与事件/设置接口，以及接入真实 API 的正式前端面板；`0.8.1` 修复网关裸前缀下的相对资源加载，`0.8.2` 修复网关改写 `Host` 下的同源校验，`0.8.3` 修复忽略规则与基线不对称（比对前按当前规则过滤基线，改规则即时生效），`0.8.4` 修复手机端页签塌陷与页面表格溢出，`0.8.5` 把概览页「需要处理」与「最近事件」改为上下全宽，`0.8.6` 新增忘记密码（邮箱校验 + 告警 SMTP 发 20 位分组重置码 + 手输重置，不依赖登录地址），`0.8.7` 落地工程规范（`VERSION` 单一版本来源、MIT 许可证与 SPDX 头、`docs-framework/` SDD 工作区与 `specs/api/api.yaml` 契约、`license:*` / `preflight` 脚本、`scripts/service.sh`）。标注 `[已实现]` 的部分有代码与测试；未标注的为后续规范。
 
 ---
 
@@ -58,9 +58,19 @@ Scheduler.tick()
 
 ```
 site-guard/
+├── VERSION                   # 版本单一来源（单行 vX.Y.Z）
+├── LICENSE / NOTICE          # MIT 全文与第三方归因
+├── .env.example              # 全部环境变量示例
 ├── package.json              # 版本、scripts、唯一依赖 nodemailer
 ├── README.md                 # 面向使用者
 ├── CHANGELOG.md              # 版本历史 + 详细更新日志
+├── .trae/rules/              # 项目约定与团队命名规范
+├── docs-framework/           # SDD 工作区
+│   ├── SDD_WORKFLOW.md       # 规格先行流程（No Spec, No Code）
+│   ├── templates/            # spec / plan / ADR / PRD 等模板
+│   ├── specs/api/api.yaml    # [已实现] OpenAPI 3.1 契约（与 routes.js 同步维护）
+│   ├── specs/functional/     # 归档后的功能规格
+│   └── changes/              # 进行中的功能变更（spec.md + plan.md）
 ├── doc/
 │   ├── DESIGN.md             # 设计方案（为什么）
 │   ├── PROJECT.md            # 开发技术文档（本文，怎么做）
@@ -98,11 +108,11 @@ site-guard/
 ├── deploy/
 │   └── Dockerfile            # [已实现] Docker 镜像构建（node:22-alpine，非 root + SQLite /data）
 ├── test/                     # node:test 用例
-├── scripts/                  # 构建/打包/推送镜像脚本
+├── scripts/                  # 构建打包、图标、SPDX 头检查（license.mjs）、sdd、service.sh
 └── tools/                    # 运维小工具（备份导出等）
 ```
 
-> 约定：`prototype/` 是**设计确认用的原型**（假数据、带演示场景开关，不参与构建）；`public/` 才是真正交付的前端（四页签面板，直连真实 API）。0.8.0 起两者视觉一致，但只有 `public/` 会随 `.fpk` / 镜像交付。
+> 约定：`prototype/` 是**设计确认用的原型**（假数据、带演示场景开关，不参与构建）；`public/` 才是真正交付的前端（四页签面板，直连真实 API）。0.8.0 起两者视觉一致，但只有 `public/` 会随 `.fpk` / 镜像交付。功能开发遵循 `docs-framework/SDD_WORKFLOW.md`：先写 `changes/<feature>/spec.md` + `plan.md`，`./scripts/sdd check <feature> implement` 通过后再改代码；涉及接口时同步更新 `docs-framework/specs/api/api.yaml`。
 
 ---
 
@@ -524,6 +534,7 @@ const batchId = `${site.id}-${Date.now()}`;
 ### 7.1 路由表
 
 > **0.6.0 实现状态**：表中接口全部可用。`pages/:id/run` 会真实抓取该页并返回判定结果，单页复检写检测记录与事件（不建批次、不发信）；`GET /api/events` 支持 `type`、`siteId`、`limit`（≤200）、`offset`，返回 `{ items, total, limit, offset }`；设置接口的 `password` 只写不读，留空表示保留原值。
+> **0.8.7 起**：完整字段、请求体、响应 schema 与错误码以 [docs-framework/specs/api/api.yaml](../docs-framework/specs/api/api.yaml) 为准（OpenAPI 3.1，21 个路径 / 25 个操作），本表只作速查。
 
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
@@ -532,6 +543,8 @@ const batchId = `${site.id}-${Date.now()}`;
 | POST | `/api/setup` | 否 | 首次设置密码（已设置则 409） |
 | POST | `/api/login` | 否 | 登录，限速 |
 | POST | `/api/logout` | 是 | 销毁会话 |
+| POST | `/api/auth/reset/request` | 否 | 忘记密码：校验邮箱后发重置码（限速） |
+| POST | `/api/auth/reset/confirm` | 否 | 提交重置码 + 新密码完成重置 |
 | GET | `/api/overview` | 是 | 统计、需处理清单、最近事件、下一轮时间 |
 | GET | `/api/sites` | 是 | 站点 + 页面 + 最近一次判定 |
 | POST | `/api/sites` | 是 | 新建站点 |
@@ -625,6 +638,11 @@ const batchId = `${site.id}-${Date.now()}`;
 | --- | --- | --- |
 | `PORT` | `8686` | 监听端口 |
 | `DATA_DIR` | `/data` | SQLite 与附件目录 |
+| `SOCKET_PATH` | 空 | 非空则监听 Unix Socket（飞牛统一网关） |
+| `GATEWAY_PREFIX` | 空 | 网关挂载前缀，如 `/app/siteguard` |
+| `FRONTEND_DIST` | 空 | 打包后前端产物目录，空则用仓库内 `public/` |
+| `ALLOWED_ORIGINS` | 空 | 额外允许的跨站来源，逗号分隔 |
+| `DB_FILE` | `<DATA_DIR>/app.db` | SQLite 文件路径 |
 | `TZ` | `Asia/Shanghai` | 展示与调度时区 |
 | `LOG_LEVEL` | `info` | `debug/info/warn/error` |
 | `FETCH_TIMEOUT_MS` | `20000` | 单页超时（5~60 秒） |
@@ -637,7 +655,7 @@ const batchId = `${site.id}-${Date.now()}`;
 | `MAX_PAGES_PER_SITE` | `30` | 单站点页面上限 |
 | `ALLOW_PRIVATE_TARGETS` | `true` | 是否允许抓取 127.0.0.1/内网地址 |
 
-界面内可改的项（存 `settings` 表）：SMTP 全部参数、告警冷却、面板地址。页面间隔、并发数、时区属于进程级配置，只能通过环境变量设置（`PAGE_GAP_MS` / `MAX_CONCURRENCY` / `TZ`）。
+界面内可改的项（存 `settings` 表）：SMTP 全部参数、告警冷却、面板地址。页面间隔、并发数、时区属于进程级配置，只能通过环境变量设置（`PAGE_GAP_MS` / `MAX_CONCURRENCY` / `TZ`）。完整清单与取值说明见根目录 [.env.example](../.env.example)。
 
 ---
 
@@ -670,11 +688,13 @@ const batchId = `${site.id}-${Date.now()}`;
 ## 11. 编码规范
 
 - ESM（`"type": "module"`），2 空格缩进，单引号，语句以分号结尾（与 `src/*.js` 一致）。
+- 每个 `.js` / `.mjs` 源文件首部两行：`// SPDX-License-Identifier: MIT` 与 `// Copyright (c) 2026 by Mr lin`；新增文件可跑 `npm run license:fix` 自动补齐。
 - 中文注释，写"为什么"而不是"做了什么"。
 - 禁止吞异常：捕获后必须要么记录日志并转成用户可读错误，要么继续抛出。
 - 所有对外字符串走 `escapeHtml`；所有 SQL 走参数绑定。
 - 一个文件一个关注点，单文件不超过 400 行为宜。
-- 提交信息中文，格式：`类型: 做了什么`（如 `feat: 增加站点巡检批次`）。
+- 提交信息中文，格式：`类型(范围): 中文摘要`（如 `feat(monitor): 增加站点巡检批次`）。
+- 改代码前先过 SDD：`docs-framework/changes/<feature>/spec.md` + `plan.md` 就绪，`./scripts/sdd check <feature> implement` 通过；提交前跑 `npm run preflight`。
 
 ---
 

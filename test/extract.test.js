@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extractHtml, extractTitle, decodeEntities, compileIgnorePatterns } from '../src/extract.js';

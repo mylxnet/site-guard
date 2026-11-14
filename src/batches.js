@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /**
  * 批次进度只存内存（最多保留 20 条）：
  * 前端轮询需要的是“这一轮现在跑到哪了”，进程重启后回落到读 checks 即可，

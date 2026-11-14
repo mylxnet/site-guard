@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 import { parseDailyTimes, parseIntervalHours, isValidTimeZone } from './schedule.js';
 
 /** 校验失败统一抛这个，路由层转成 400 + fields。 */

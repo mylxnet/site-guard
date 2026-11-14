@@ -1,6 +1,6 @@
 # 项目状态 / 交接文档
 
-> 版本：0.8.6 ｜ 更新：2026-11-14 ｜ 作者：by Mr lin
+> 版本：0.8.7 ｜ 更新：2026-11-14 ｜ 作者：by Mr lin
 
 ---
 
@@ -24,8 +24,9 @@
 | **飞牛原生应用 .fpk（包目录/生命周期脚本/打包脚本，0.7.0）** | ✅ 完成，已出 x86 与 arm 两包；**实机安装已通过（0.7.2 验证，0.7.3 为同一形态升版）** |
 | 正式前端面板（`public/` 接入 API，0.8.0） | ✅ 完成：四页签 + 初始化/登录 + 站点页面 CRUD + 真实巡检进度 + 判定详情/差异/基线 + 事件流 + 邮件设置；浏览器实测通过；0.8.4 修复手机端页签塌陷与页面表格溢出；0.8.5 概览页「需要处理」与「最近事件」改为上下全宽 |
 | **忘记密码（0.8.6）** | ✅ 完成：登录页「忘记密码？」4 步流程；邮箱须等于「告警收件人」第一条，通过后用告警 SMTP 发 20 位分组重置码（无链接），手输重置；重置密码仅要求不少于 4 位；30 分钟有效、单次使用、改密清会话；新增 9 条用例，124 条全绿 |
-| Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（0.8.5 / latest，digest `sha256:065a50e9…`），仓库已设为公开，可匿名拉取 |
-| **发布（GitHub tag + Release）** | ✅ `tag v0.8.5` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8） |
+| **工程规范落地（0.8.7）** | ✅ 完成：`VERSION` / `LICENSE` / `NOTICE` / `.env.example`、`.trae/rules/`、`docs-framework/`（SDD 流程 + 模板 + `specs/api/api.yaml` 契约 + 本轮 changes）、`scripts/license.mjs` / `sdd` / `service.sh`、`license:*` 与 `preflight`；36 个源文件补 SPDX 头；preflight 与服务启停实测通过 |
+| Docker 镜像（备用路径，`deploy/Dockerfile`） | ✅ 已产出并推送阿里云 ACR（`0.8.6` / `latest`，digest `sha256:3f765e1a…`），仓库已设为公开，可匿名拉取 |
+| **发布（GitHub tag + Release）** | ✅ 最新 `tag v0.8.6` 已推送；Release 已发布，附 x86/arm 两个 `.fpk`（见 §8）；0.8.7 尚未发布 |
 
 > 说明：0.8.0 起整个闭环都能在界面上完成——“初始化 → 建站点/页面 → 巡检（真实进度与日志）→ 看判定与差异 → 确认基线 → 收到汇总邮件”，抓取与 SMTP 都是真实链路；0.7.0 起可打包成飞牛原生安装包（不依赖 Docker），0.7.2 已在飞牛 fnOS 实机安装并打开。
 
@@ -57,6 +58,12 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm install
 
 # 跑测试
 wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
+
+# 发布前自检（SPDX 头 + 全量测试）
+wsl -d site-guard --cd /mnt/e/work/site-guard -- npm run preflight
+
+# 本地启停（日志在 logs/，PID 在 .service.pid）
+wsl -d site-guard --cd /mnt/e/work/site-guard -- ./scripts/service.sh start|stop|restart|status|health|logs
 ```
 
 > Git Bash 中调用 `wsl` 若遇到路径被改写，加 `MSYS2_ARG_CONV_EXCL='*'`。
@@ -134,6 +141,9 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 - **0.8.4 未做实机复核**：已通过 Chrome DevTools 手机模拟（390×844×3）、桌面 1280×800 复核、Docker 冒烟与 115 条自动化测试；x86/arm 包已出、镜像已推 ACR，但尚未在飞牛 fnOS 实机安装确认。
 - **0.8.5 未做实机复核**：本次为纯前端样式（概览页两卡改上下全宽），已通过 1280×800 桌面实测与小屏复核、115 条自动化测试、容器冒烟（`version":"0.8.5"`）；x86/arm 包与镜像 0.8.5 已产出，尚未在 fnOS 实机安装确认。
 - **0.8.6 未做实机复核，真实 SMTP 未测**：忘记密码的完整逻辑已由 124 条自动化用例（新增 9 条）与本地浏览器实测覆盖，但重置码邮件只用注入的 `sendMail` 桩验证过，尚未接真实邮箱服务商；也未在 fnOS 实机走一遍「申请 → 收码 → 重置」。另外，重置码倒计时仅存于页面内存，刷新后需重新走「已发送」步骤（码本身 30 分钟内仍有效）。
+- **0.8.7 未做实机复核**：本轮只补工程规范与脚本，未改业务逻辑与前端渲染；已通过 `npm run preflight`（36 个文件 SPDX 头 + 124 条用例全绿）、`./scripts/sdd check` 与服务启停实测。`scripts/service.sh` 面向 WSL/Linux 自测，Windows 原生请用 `npm start`。
+- **SDD 尚未强制**：`docs-framework/SDD_WORKFLOW.md` 描述了 Git pre-commit 钩子，但本轮按约定未安装钩子；当前靠人工执行 `./scripts/sdd check <feature> implement`。
+- **API 前缀未迁移**：约定建议 `/v{major}`，本项目仍使用 `/api/...`（避免破坏既有面板与网关路径）；`api.yaml` 按现状记录，迁移列入后续可选事项。
 - **忘记密码依赖告警邮件配置**：未启用邮件通知或「告警收件人」为空时无法自助重置（接口返回 409），只能改数据库或重装；这是有意的取舍——不发信就没有第二条可信身份通道。
 - ARM 包（`siteguard-0.8.3-arm.fpk` / `siteguard-0.8.4-arm.fpk` / `siteguard-0.8.5-arm.fpk`）只完成了打包与结构检查，没有在 ARM 机器上跑过。
 - Docker 已落地为 `deploy/Dockerfile`（node:22-alpine、非 root、SQLite `/data` 卷），镜像已推阿里云 ACR（`0.8.5` / `latest`，仓库公开、可匿名拉取）；`docker-compose.yml` 尚未产出（如需要再补）。
@@ -174,6 +184,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 | 版本 | 日期 | 内容 |
 | --- | --- | --- |
+| 0.8.7 | 2026-11-14 | 工程规范落地：新增 `VERSION`（单一版本来源）、`LICENSE` / `NOTICE` / `.env.example`、`.trae/rules/`、`docs-framework/`（SDD 流程、9 个模板、`specs/api/api.yaml` 21 路径 25 操作、本轮 `changes/conventions-retrofit`）；新增 `scripts/license.mjs`（SPDX 检查/修复）、`scripts/sdd`、`scripts/service.sh`；`package.json` 增加 `license:check` / `license:fix` / `preflight`；36 个 `.js`/`.mjs` 补版权头；`.gitignore` 增加 `logs/` 与 `.service.pid`；版本号 0.8.7 多处同步。未迁移 `/api/v1`、未改日志格式、未装 Git 钩子 |
 | 0.8.6 | 2026-11-14 | 登录页新增「忘记密码」：输入邮箱（须等于告警收件人第一条）→ 告警 SMTP 发送 20 位 Crockford Base32 分组重置码（无链接，`O→0`、`I/L→1` 容错）→ 输入码 + 新密码完成重置。新增 `reset_tokens` 表（迁移 v2，只存 `sha256`，30 分钟 TTL、单次使用、按邮箱清理）；限速申请 3 次/5 分钟、提交 5 次/10 分钟、全局 10 封/小时；改密后清空全部会话。新增 `test/reset.test.js` 9 条，124 条全绿；浏览器实测验证邮箱页四态（370px）与重置码页三态（476px）高度一致、500px 宽无横向滚动；升版 0.8.6 并同步文档 |
 | 0.8.5 | 2026-10-26 | 概览页「需要处理」与「最近事件」由左右并列改为上下全宽：原来两栏 `minmax(0,1.05fr) minmax(0,1fr)` 把事件列表挤窄、阅读顺序也绕，改为 `.overview-grid` 单列（`grid-template-columns: minmax(0,1fr)`），两卡全宽并与上方统计卡左右对齐；同时删除 980px 断点里对 `.overview-grid` 的重复覆盖，只保留统计卡两列。Chrome DevTools 1280×800 实测：两卡上下排列、宽度均为 1132px、间距 12px；小屏仍为上下且无横向滚动；`npm test` 115 条全绿（纯 CSS 改动） |
 | 0.8.4 | 2026-10-26 | 修复手机端两处功能不可用：① 顶部页签在内容超过一屏后整条消失（390px 宽实测高度仅 1px，根因 `body` 纵向 flex + `min-height:100vh`，`.tabs` 的 `min-height` 因 `overflow-x:auto` 算作 0，被压缩；加 `flex: none` 后实测 42.9px）；② 监测页页面表格宽 720px 超出 360px 容器，四个操作按钮全在屏幕外，`max-width:720px` 下改为卡片式（每行一张卡、理由单独一行、按钮换行到底部，隐藏 `colgroup`/`thead`，取消横向滚动）。Chrome DevTools 390×844×3 实测：表格宽=容器宽、`scrollWidth=390`、四按钮均在视口内；1280×800 复核桌面无回归；`npm test` 115 条全绿（纯 CSS 改动）。事件日志表未卡片化，保留横向滑动 |
@@ -210,7 +221,7 @@ wsl -d site-guard --cd /mnt/e/work/site-guard -- npm test
 
 **发布流程（下次照做）**
 
-1. 确认 `package.json` / `package-lock.json` / `fnos/siteguard/manifest` / 界面版本号 / 文档版本号五处一致。
+1. 确认 `VERSION` / `package.json` / `package-lock.json` / `fnos/siteguard/manifest` / 界面页脚 / 文档版本号一致。
 2. WSL 内跑测试与打包，产出 `dist/fnos/siteguard-<版本>-x86.fpk` 与 `-arm.fpk`，按 `doc/FNOS_APP_DEV_GUIDE.md` §13.5 解包核对。
 3. `git tag -a v<版本> -m "<说明>"`，`git push origin v<版本>`。
 4. 建 GitHub Release（正文含「下载哪个 / 安装步骤 / 修复点 / 验证」），上传两个 `.fpk`；**附件名用 ASCII**，二进制不入 git。

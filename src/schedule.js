@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 by Mr lin
+
 /**
  * 计划计算：不依赖宿主机本地时区。
  * 所有换算通过 Intl 取目标时区的“墙上时间”，再还原成时间戳。

@@ -7,6 +7,8 @@ build/
 # fpk 的可执行部分由 scripts/build-fnos.mjs 组装，属于构建产物
 fnos/siteguard/app/server/
 *.log
+logs/
+.service.pid
 *.tmp
 .DS_Store
 .env
